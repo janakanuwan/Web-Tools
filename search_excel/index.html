@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel File Search Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: minmax(300px, 30%) 1fr;
+            }
+        }
+
+        .controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .files-section, .search-section {
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+
+        .file-input-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .custom-file-upload {
+            display: block;
+            width: 100%;
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        .custom-file-upload:hover {
+            background-color: #3b5a8c;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .file-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-name {
+            flex-grow: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: 10px;
+        }
+
+        .remove-file {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+
+        .search-options {
+            margin-bottom: 15px;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .checkbox-container input {
+            margin-right: 8px;
+        }
+
+        .search-button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+
+        .search-button:hover {
+            background-color: #3b5a8c;
+        }
+
+        .search-button:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+        }
+
+        .results {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+
+        .file-results {
+            margin-bottom: 30px;
+        }
+
+        .file-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid var(--secondary-color);
+        }
+
+        .file-title {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .matches-count {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .match-item {
+            background-color: var(--light-gray);
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .match-location {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .sheet-badge {
+            background-color: var(--secondary-color);
+            color: var(--primary-color);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .match-data {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .match-data th, .match-data td {
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+            word-wrap: break-word;
+        }
+
+        .match-data th {
+            background-color: var(--secondary-color);
+            font-weight: normal;
+            font-size: 0.9rem;
+        }
+
+        .highlight {
+            background-color: #fff3cd;
+            padding: 0 2px;
+            border-radius: 2px;
+            font-weight: bold;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .status-message {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .error-message {
+            color: var(--accent-color);
+        }
+
+        .sheet-summary {
+            margin-top: 5px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        @media (max-width: 767px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Excel File Search Tool</h1>
+    <div class="container">
+        <div class="controls">
+            <div class="files-section">
+                <h2>Upload Excel Files</h2>
+                <div class="file-input-container">
+                    <label for="fileInput" class="custom-file-upload">
+                        <i class="fas fa-file-excel"></i> Select Excel Files
+                    </label>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
+                </div>
+                <div id="fileList" class="file-list"></div>
+                <div id="uploadStatus" class="status-message"></div>
+            </div>
+            <div class="search-section">
+                <h2>Search Parameters</h2>
+                <input type="text" id="searchInput" class="search-input" placeholder="Enter search term...">
+                <div class="search-options">
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="caseSensitive">
+                        <label for="caseSensitive">Case sensitive</label>
+                    </div>
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="wholeWord">
+                        <label for="wholeWord">Match whole words only</label>
+                    </div>
+                </div>
+                <button id="searchButton" class="search-button" disabled>Search Files</button>
+            </div>
+        </div>
+        <div class="results" id="searchResults">
+            <h2>Search Results</h2>
+            <div id="resultsContainer">
+                <div class="no-results">Upload files and search to see results</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Global variables
+            const fileInput = document.getElementById('fileInput');
+            const fileList = document.getElementById('fileList');
+            const uploadStatus = document.getElementById('uploadStatus');
+            const searchInput = document.getElementById('searchInput');
+            const caseSensitiveCheck = document.getElementById('caseSensitive');
+            const wholeWordCheck = document.getElementById('wholeWord');
+            const searchButton = document.getElementById('searchButton');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            let uploadedFiles = [];
+            let fileContents = [];
+            
+            // Event listeners
+            fileInput.addEventListener('change', handleFileSelection);
+            searchButton.addEventListener('click', performSearch);
+            searchInput.addEventListener('input', updateSearchButtonState);
+            
+            // Functions
+            function handleFileSelection(e) {
+                const files = e.target.files;
+                if (files.length === 0) return;
+                
+                uploadStatus.textContent = `Processing ${files.length} file(s)...`;
+                uploadStatus.className = 'status-message';
+                
+                Array.from(files).forEach((file, index) => {
+                    const fileIndex = uploadedFiles.length + 1;
+                    
+                    // Check if it's an Excel file
+                    if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                        uploadStatus.textContent = `Error: ${file.name} is not a valid Excel file.`;
+                        uploadStatus.className = 'status-message error-message';
+                        return;
+                    }
+                    
+                    // Add file to the list
+                    uploadedFiles.push({
+                        index: fileIndex,
+                        name: file.name,
+                        file: file
+                    });
+                    
+                    addFileToList(fileIndex, file.name);
+                    processExcelFile(file, fileIndex);
+                });
+                
+                // Reset file input for future selections
+                fileInput.value = '';
+                updateSearchButtonState();
+            }
+            
+            function addFileToList(index, filename) {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <span class="file-name">${index}. ${filename}</span>
+                    <button class="remove-file" data-index="${index}">Remove</button>
+                `;
+                
+                fileList.appendChild(fileItem);
+                
+                // Add event listener to remove button
+                const removeButton = fileItem.querySelector('.remove-file');
+                removeButton.addEventListener('click', function() {
+                    removeFile(parseInt(this.getAttribute('data-index')));
+                });
+            }
+            
+            function removeFile(index) {
+                // Find the file's position in the array
+                const filePosition = uploadedFiles.findIndex(f => f.index === index);
+                if (filePosition === -1) return;
+                
+                // Remove from arrays
+                uploadedFiles.splice(filePosition, 1);
+                fileContents = fileContents.filter(f => f.fileIndex !== index);
+                
+                // Remove from UI
+                updateFileList();
+                updateSearchButtonState();
+                
+                // Clear results if the file was being displayed
+                const fileResultsElement = document.querySelector(`.file-results[data-file-index="${index}"]`);
+                if (fileResultsElement) {
+                    fileResultsElement.remove();
+                }
+            }
+            
+            function updateFileList() {
+                fileList.innerHTML = '';
+                uploadedFiles.forEach(file => {
+                    addFileToList(file.index, file.name);
+                });
+            }
+            
+            function processExcelFile(file, fileIndex) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        
+                        // Process each sheet in the workbook
+                        workbook.SheetNames.forEach(sheetName => {
+                            const worksheet = workbook.Sheets[sheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                            
+                            // Store the parsed data
+                            fileContents.push({
+                                fileIndex: fileIndex,
+                                fileName: file.name,
+                                sheetName: sheetName,
+                                data: jsonData
+                            });
+                        });
+                        
+                        // Update status with sheet count information
+                        const sheetsInfo = fileContents
+                            .filter(f => f.fileIndex === fileIndex)
+                            .map(f => f.sheetName);
+                        
+                        uploadStatus.innerHTML = `${uploadedFiles.length} file(s) processed successfully.`;
+                        
+                        if (sheetsInfo.length > 0) {
+                            const fileItem = Array.from(fileList.querySelectorAll('.file-item'))
+                                .find(item => item.querySelector('.remove-file').getAttribute('data-index') == fileIndex);
+                            
+                            if (fileItem && !fileItem.querySelector('.sheet-summary')) {
+                                const sheetSummary = document.createElement('div');
+                                sheetSummary.className = 'sheet-summary';
+                                sheetSummary.textContent = `Sheets: ${sheetsInfo.join(', ')}`;
+                                fileItem.querySelector('.file-name').appendChild(sheetSummary);
+                            }
+                        }
+                        
+                        // Enable search button if we have files and a search term
+                        updateSearchButtonState();
+                        
+                    } catch (error) {
+                        console.error('Error processing Excel file:', error);
+                        uploadStatus.textContent = `Error processing ${file.name}: ${error.message}`;
+                        uploadStatus.className = 'status-message error-message';
+                        
+                        // Remove the file from our list since it couldn't be processed
+                        const filePosition = uploadedFiles.findIndex(f => f.index === fileIndex);
+                        if (filePosition !== -1) {
+                            uploadedFiles.splice(filePosition, 1);
+                            updateFileList();
+                        }
+                    }
+                };
+                
+                reader.onerror = function() {
+                    uploadStatus.textContent = `Error reading ${file.name}.`;
+                    uploadStatus.className = 'status-message error-message';
+                };
+                
+                reader.readAsArrayBuffer(file);
+            }
+            
+            function updateSearchButtonState() {
+                const hasFiles = fileContents.length > 0;
+                const hasSearchTerm = searchInput.value.trim().length > 0;
+                
+                searchButton.disabled = !(hasFiles && hasSearchTerm);
+            }
+            
+            function performSearch() {
+                const searchTerm = searchInput.value.trim();
+                if (!searchTerm || fileContents.length === 0) return;
+                
+                const isCaseSensitive = caseSensitiveCheck.checked;
+                const isWholeWord = wholeWordCheck.checked;
+                
+                // Show loading indicator
+                resultsContainer.innerHTML = '<div class="loading">Searching files...</div>';
+                
+                // Use setTimeout to allow the browser to render the loading message
+                setTimeout(() => {
+                    const searchResults = searchExcelFiles(searchTerm, isCaseSensitive, isWholeWord);
+                    displaySearchResults(searchResults, searchTerm, isCaseSensitive);
+                }, 100);
+            }
+            
+            function searchExcelFiles(searchTerm, isCaseSensitive, isWholeWord) {
+                const results = [];
+                
+                // Normalize search term based on case sensitivity
+                const normalizedSearchTerm = isCaseSensitive ? searchTerm : searchTerm.toLowerCase();
+                
+                // Create a regular expression for whole word matching if necessary
+                let searchRegex = null;
+                if (isWholeWord) {
+                    const flags = isCaseSensitive ? '' : 'i';
+                    searchRegex = new RegExp(`\\b${escapeRegExp(searchTerm)}\\b`, flags);
+                }
+                
+                // Group by file for organized results
+                const fileGroups = {};
+                
+                // Search in each file's content
+                fileContents.forEach(fileContent => {
+                    const fileKey = `${fileContent.fileIndex}`;
+                    if (!fileGroups[fileKey]) {
+                        fileGroups[fileKey] = {
+                            fileIndex: fileContent.fileIndex,
+                            fileName: fileContent.fileName,
+                            sheets: {}
+                        };
+                    }
+                    
+                    const fileMatches = [];
+                    
+                    fileContent.data.forEach((row, rowIndex) => {
+                        const matchingColumns = [];
+                        
+                        row.forEach((cell, colIndex) => {
+                            // Skip if cell is not a string or is empty
+                            if (typeof cell !== 'string' && typeof cell !== 'number') return;
+                            
+                            const cellValue = String(cell);
+                            const normalizedCell = isCaseSensitive ? cellValue : cellValue.toLowerCase();
+                            
+                            let isMatch = false;
+                            if (isWholeWord) {
+                                isMatch = searchRegex.test(cellValue);
+                            } else {
+                                isMatch = normalizedCell.includes(normalizedSearchTerm);
+                            }
+                            
+                            if (isMatch) {
+                                matchingColumns.push({
+                                    columnIndex: colIndex,
+                                    value: cellValue
+                                });
+                            }
+                        });
+                        
+                        if (matchingColumns.length > 0) {
+                            fileMatches.push({
+                                rowIndex: rowIndex,
+                                rowNumber: rowIndex + 1, // Excel rows are 1-indexed
+                                matchingColumns: matchingColumns,
+                                rowData: row
+                            });
+                        }
+                    });
+                    
+                    if (fileMatches.length > 0) {
+                        if (!fileGroups[fileKey].sheets[fileContent.sheetName]) {
+                            fileGroups[fileKey].sheets[fileContent.sheetName] = [];
+                        }
+                        fileGroups[fileKey].sheets[fileContent.sheetName] = 
+                            fileGroups[fileKey].sheets[fileContent.sheetName].concat(fileMatches);
+                    }
+                });
+                
+                // Convert the file groups to the results array
+                Object.values(fileGroups).forEach(fileGroup => {
+                    const fileResult = {
+                        fileIndex: fileGroup.fileIndex,
+                        fileName: fileGroup.fileName,
+                        sheetResults: []
+                    };
+                    
+                    Object.entries(fileGroup.sheets).forEach(([sheetName, matches]) => {
+                        fileResult.sheetResults.push({
+                            sheetName: sheetName,
+                            matches: matches
+                        });
+                    });
+                    
+                    results.push(fileResult);
+                });
+                
+                return results;
+            }
+            
+            function displaySearchResults(results, searchTerm, isCaseSensitive) {
+                if (results.length === 0) {
+                    resultsContainer.innerHTML = '<div class="no-results">No matches found. Try a different search term or check more files.</div>';
+                    return;
+                }
+                
+                let html = '';
+                
+                // Sort results by file index
+                results.sort((a, b) => a.fileIndex - b.fileIndex);
+                
+                results.forEach(fileResult => {
+                    // Calculate total matches across all sheets
+                    let totalMatches = 0;
+                    fileResult.sheetResults.forEach(sheetResult => {
+                        totalMatches += sheetResult.matches.length;
+                    });
+                    
+                    html += `
+                        <div class="file-results" data-file-index="${fileResult.fileIndex}">
+                            <div class="file-header">
+                                <div class="file-title">${fileResult.fileIndex}. ${fileResult.fileName}</div>
+                                <div class="matches-count">${totalMatches} match${totalMatches !== 1 ? 'es' : ''}</div>
+                            </div>
+                    `;
+                    
+                    // Process each sheet's results
+                    fileResult.sheetResults.forEach(sheetResult => {
+                        html += `<h3>Sheet: ${sheetResult.sheetName}</h3>`;
+                        
+                        sheetResult.matches.forEach(match => {
+                            html += `
+                                <div class="match-item">
+                                    <div class="match-location">
+                                        <span>Row ${match.rowNumber}</span>
+                                        <span class="sheet-badge">${sheetResult.sheetName}</span>
+                                    </div>
+                                    <table class="match-data">
+                                        <thead>
+                                            <tr>
+                            `;
+                            
+                            // Generate column headers
+                            for (let i = 0; i < match.rowData.length; i++) {
+                                html += `<th>Column ${String.fromCharCode(65 + i)}</th>`;
+                            }
+                            
+                            html += `
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                            `;
+                            
+                            // Generate row data with highlighted matches
+                            match.rowData.forEach((cell, index) => {
+                                const cellValue = String(cell || '');
+                                const isMatchingColumn = match.matchingColumns.some(col => col.columnIndex === index);
+                                
+                                if (isMatchingColumn) {
+                                    // Highlight the matching text
+                                    html += `<td>${highlightSearchTerm(cellValue, searchTerm, isCaseSensitive)}</td>`;
+                                } else {
+                                    html += `<td>${escapeHTML(cellValue)}</td>`;
+                                }
+                            });
+                            
+                            html += `
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `;
+                        });
+                    });
+                    
+                    html += `</div>`;
+                });
+                
+                resultsContainer.innerHTML = html;
+            }
+            
+            function highlightSearchTerm(text, searchTerm, isCaseSensitive) {
+                if (!text) return '';
+                
+                const normalizedText = isCaseSensitive ? text : text.toLowerCase();
+                const normalizedSearchTerm = isCaseSensitive ? searchTerm : searchTerm.toLowerCase();
+                
+                // If the search term doesn't exist in this string, return the original
+                if (!normalizedText.includes(normalizedSearchTerm)) return escapeHTML(text);
+                
+                let result = '';
+                let startIndex = 0;
+                let index;
+                
+                while ((index = normalizedText.indexOf(normalizedSearchTerm, startIndex)) !== -1) {
+                    // Add text before the match
+                    result += escapeHTML(text.substring(startIndex, index));
+                    
+                    // Add the highlighted match
+                    result += `<span class="highlight">${escapeHTML(text.substring(index, index + searchTerm.length))}</span>`;
+                    
+                    // Update start index for next search
+                    startIndex = index + searchTerm.length;
+                }
+                
+                // Add the remaining text
+                result += escapeHTML(text.substring(startIndex));
+                
+                return result;
+            }
+            
+            // Helper functions
+            function escapeHTML(str) {
+                if (str === undefined || str === null) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+            
+            function escapeRegExp(string) {
+                return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tools Collection</title>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --hover-color: #3a5985;
+            --text-color: #333;
+            --card-bg: #f9f9f9;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 1.1rem;
+        }
+        
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 30px;
+        }
+        
+        .tool-card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .tool-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .tool-card a {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            padding: 25px 20px;
+        }
+        
+        .tool-icon {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 3rem;
+            color: var(--primary-color);
+        }
+        
+        .tool-icon svg {
+            width: 60px;
+            height: 60px;
+        }
+        
+        .tool-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+        
+        .tool-description {
+            color: #666;
+            text-align: center;
+            font-size: 0.95rem;
+        }
+        
+        .coming-soon {
+            opacity: 0.6;
+            position: relative;
+        }
+        
+        .coming-soon::after {
+            content: 'Coming Soon';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        
+        footer {
+            margin-top: 50px;
+            text-align: center;
+            padding: 20px 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .tools-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 20px;
+            }
+            
+            .tool-icon {
+                font-size: 2.5rem;
+            }
+            
+            .tool-icon svg {
+                width: 50px;
+                height: 50px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+            
+            header {
+                margin-bottom: 30px;
+            }
+            
+            .tools-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Tools Collection</h1>
+            <p class="subtitle">Useful utilities to enhance your workflow</p>
+            <br> 
+             <p class="subtitle">
+                <strong>Note:</strong> All tools are static web pages that <strong>run locally</strong> in your browser — <em>no data is sent to any server</em>. If preferred, you can also download them as HTML files and run them offline.
+            </p>
+            <br>
+            <p class="subtitle"><strong>Acknowledgement:</strong> Developing tools were inspired by <a href="https://runzecai.com/tools/" target="_blank" rel="noopener noreferrer">https://runzecai.com/tools/</a>!</p>
+        </header>
+         
+        
+        <div class="tools-grid">
+            <!-- Excel File Search Tool -->
+            <div class="tool-card">
+                <a href="./search_excel/">
+                    <div class="tool-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <circle cx="10" cy="14" r="2"></circle>
+                            <line x1="20" y1="20" x2="13" y2="13"></line>
+                        </svg>
+                    </div>
+                    <h3 class="tool-name">Excel File Search Tool</h3>
+                    <p class="tool-description">Quickly search and extract data from Excel files</p>
+                </a>
+            </div>
+            
+            <!-- Placeholder for future tools -->
+            <div class="tool-card coming-soon">
+                <a href="javascript:void(0)">
+                    <div class="tool-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="16"></line>
+                            <line x1="8" y1="12" x2="16" y2="12"></line>
+                        </svg>
+                    </div>
+                    <h3 class="tool-name">New Tool</h3>
+                    <p class="tool-description">More tools will be added soon</p>
+                </a>
+            </div>
+        </div>
+        
+        <footer>
+            <p>
+                [<script>document.write(new Date().getFullYear())</script>] 
+                Disclaimer: These tools are developed with the use of GenAI tools. Use them at your own risk — the developer assumes no responsibility for any data loss, errors, or outcomes resulting from their use.
+            </p>
+            <p>
+                This project is licensed under the <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer">MIT License</a>.
+            </p>
+        </footer>
+
+    </div>
+    
+
+</body>
+</html>
