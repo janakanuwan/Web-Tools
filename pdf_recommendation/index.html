@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recommendation Letter Generator</title>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: minmax(300px, 30%) 1fr;
+            }
+        }
+
+        .controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .files-section, .search-section {
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+
+        .file-input-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .custom-file-upload {
+            display: block;
+            width: 100%;
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        .custom-file-upload:hover {
+            background-color: #3b5a8c;
+        }
+
+        /* Additional styles for the generator app */
+        .preview-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+
+        .document-preview {
+            margin-top: 15px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: white;
+            min-height: 300px;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+
+        .placeholder {
+            background-color: var(--secondary-color);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background-color: var(--secondary-color);
+            font-weight: bold;
+        }
+
+        .table-actions {
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #3b5a8c;
+        }
+
+        .btn-accent {
+            background-color: var(--accent-color);
+        }
+
+        .btn-accent:hover {
+            background-color: #e05151;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+
+        .checkbox-container {
+            margin-right: 10px;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            min-height: 80px;
+            resize: vertical;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        input[type="text"], input[type="date"] {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        .status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 20px;
+            background-color: var(--light-gray);
+            border-radius: 10px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: var(--primary-color);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        #outputContainer {
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--light-gray);
+        }
+
+        /* Styling for logs */
+        .log-container {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .log-entry {
+            margin-bottom: 3px;
+        }
+
+        .log-info {
+            color: #0077cc;
+        }
+
+        .log-success {
+            color: #28a745;
+        }
+
+        .log-error {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <h1>Recommendation Letter Generator</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <div class="files-section">
+                <h2>Upload Files</h2>
+                <div class="file-input-container">
+                    <label for="wordTemplate" class="custom-file-upload">
+                        Upload Word Template (.docx)
+                    </label>
+                    <input type="file" id="wordTemplate" accept=".docx" style="display: none;">
+                    <div id="wordTemplateName" class="file-name"></div>
+                </div>
+                
+                <div class="file-input-container">
+                    <label for="excelData" class="custom-file-upload">
+                        Upload Excel Data (.xlsx, .csv)
+                    </label>
+                    <input type="file" id="excelData" accept=".xlsx,.csv" style="display: none;">
+                    <div id="excelDataName" class="file-name"></div>
+                </div>
+            </div>
+            
+            <div class="options-section">
+                <h2>Actions</h2>
+                <button id="addRowBtn" class="btn" disabled>Add Row</button>
+                <button id="selectAllBtn" class="btn" disabled>Select All</button>
+                <button id="deselectAllBtn" class="btn" disabled>Deselect All</button>
+                <button id="generateDocsBtn" class="btn btn-accent" disabled>Generate Selected Documents</button>
+                <div id="progressBarContainer" class="progress-bar-container hidden">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+            </div>
+            
+            <div id="statusMessage" class="status-message hidden"></div>
+            
+            <div id="logContainer" class="log-container hidden">
+                <div id="logEntries"></div>
+            </div>
+        </div>
+        
+        <div class="preview-section">
+            <h2>Template Preview</h2>
+            <div id="documentPreview" class="document-preview">
+                <p>Upload a Word template to see preview here.</p>
+            </div>
+            
+            <h2>Placeholder Values</h2>
+            <div class="table-container">
+                <table id="placeholderTable">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAllCheckbox"></th>
+                            <th>Actions</th>
+                            <!-- Placeholder headers will be added dynamically -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Table rows will be added dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <script>
+        // Global variables
+        let placeholders = [];
+        let placeholderDisplayNames = {}; // Map XML placeholders to display names
+        let wordDocx = null;
+        let wordContent = '';
+        let excelData = [];
+        let tableData = [];
+        let zipContent = null; // Store the entire docx zip
+
+        // DOM elements
+        const wordTemplateInput = document.getElementById('wordTemplate');
+        const wordTemplateName = document.getElementById('wordTemplateName');
+        const excelDataInput = document.getElementById('excelData');
+        const excelDataName = document.getElementById('excelDataName');
+        const documentPreview = document.getElementById('documentPreview');
+        const placeholderTable = document.getElementById('placeholderTable');
+        const addRowBtn = document.getElementById('addRowBtn');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        const generateDocsBtn = document.getElementById('generateDocsBtn');
+        const statusMessage = document.getElementById('statusMessage');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const progressBar = document.getElementById('progressBar');
+        const logContainer = document.getElementById('logContainer');
+        const logEntries = document.getElementById('logEntries');
+
+        // Event listeners
+        wordTemplateInput.addEventListener('change', handleWordTemplateUpload);
+        excelDataInput.addEventListener('change', handleExcelDataUpload);
+        addRowBtn.addEventListener('click', addEmptyRow);
+        selectAllBtn.addEventListener('click', selectAllRows);
+        deselectAllBtn.addEventListener('click', deselectAllRows);
+        generateDocsBtn.addEventListener('click', generateSelectedDocuments);
+        selectAllCheckbox.addEventListener('change', toggleAllCheckboxes);
+
+        // Function to handle Word template upload
+        async function handleWordTemplateUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            wordTemplateName.textContent = file.name;
+            addLog(`Loading Word template: ${file.name}`, 'info');
+            
+            try {
+                // Read the .docx file
+                const arrayBuffer = await file.arrayBuffer();
+                wordDocx = arrayBuffer; // Save for later use
+                
+                // Load the entire DOCX as a ZIP archive
+                zipContent = new JSZip();
+                await zipContent.loadAsync(arrayBuffer);
+                
+                // Get document.xml content
+                const documentXml = await zipContent.file("word/document.xml").async("text");
+                
+                // Convert to HTML for preview using mammoth
+                const result = await mammoth.convertToHtml({ arrayBuffer });
+                wordContent = result.value;
+                
+                // Extract placeholders - look for [[placeholder]]
+                addLog("Extracting placeholders from template...", 'info');
+                
+                // Use both the HTML content and XML for more reliable placeholder extraction
+                extractPlaceholdersFromContent(documentXml);
+                
+                if (placeholders.length === 0) {
+                    // If no placeholders found in XML, try from HTML
+                    extractPlaceholdersFromContent(wordContent);
+                }
+                
+                addLog(`Found ${placeholders.length} placeholders: ${Object.values(placeholderDisplayNames).join(', ')}`, 'info');
+                
+                // Show preview with highlighted placeholders
+                let previewContent = wordContent;
+                placeholders.forEach(placeholder => {
+                    const displayName = placeholderDisplayNames[placeholder];
+                    const regex = new RegExp(`\\[\\[${displayName}\\]\\]`, 'g');
+                    previewContent = previewContent.replace(regex, `<span class="placeholder">[[${displayName}]]</span>`);
+                });
+                
+                documentPreview.innerHTML = previewContent;
+                
+                // Create table headers
+                createPlaceholderTable();
+                
+                // Enable buttons
+                addRowBtn.disabled = false;
+                selectAllBtn.disabled = false;
+                deselectAllBtn.disabled = false;
+                
+                showStatus('Template loaded successfully. ' + placeholders.length + ' placeholders found.', 'success');
+            } catch (error) {
+                console.error('Error processing Word file:', error);
+                addLog(`Error processing Word file: ${error.message}`, 'error');
+                showStatus('Error processing Word file: ' + error.message, 'error');
+            }
+        }
+
+        // Extract placeholders from content
+        function extractPlaceholdersFromContent(content) {
+            const placeholderRegex = /\[\[(.*?)\]\]/g;
+            placeholders = [];
+            placeholderDisplayNames = {};
+            let match;
+            
+            while ((match = placeholderRegex.exec(content)) !== null) {
+                const placeholder = match[1].trim();
+                
+                // Clean the placeholder for display (simplified display name)
+                let displayName = placeholder;
+                
+                // Store both the original and display version
+                if (!placeholders.includes(placeholder)) {
+                    placeholders.push(placeholder);
+                    placeholderDisplayNames[placeholder] = displayName;
+                }
+            }
+        }
+
+        // Function to handle Excel data upload
+        async function handleExcelDataUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            excelDataName.textContent = file.name;
+            addLog(`Loading Excel data: ${file.name}`, 'info');
+            
+            try {
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Get first sheet or specific sheet name
+                const sheetName = workbook.SheetNames[0];
+                addLog(`Found sheet: ${sheetName}`, 'info');
+                
+                const sheet = workbook.Sheets[sheetName];
+                
+                // Convert to JSON
+                excelData = XLSX.utils.sheet_to_json(sheet);
+                
+                if (excelData.length === 0) {
+                    addLog('No data found in Excel file.', 'error');
+                    showStatus('No data found in Excel file.', 'error');
+                    return;
+                }
+                
+                addLog(`Loaded ${excelData.length} rows of data`, 'success');
+                
+                // Check if we have placeholders extracted already
+                if (placeholders.length === 0) {
+                    addLog('Please upload a Word template first.', 'error');
+                    showStatus('Please upload a Word template first.', 'error');
+                    return;
+                }
+                
+                // Map Excel columns to placeholders and populate table
+                populateTableFromExcel();
+                
+                showStatus('Excel data loaded successfully. ' + excelData.length + ' rows found.', 'success');
+                generateDocsBtn.disabled = false;
+            } catch (error) {
+                console.error('Error processing Excel file:', error);
+                addLog(`Error processing Excel file: ${error.message}`, 'error');
+                showStatus('Error processing Excel file: ' + error.message, 'error');
+            }
+        }
+
+        // Function to create placeholder table headers
+        function createPlaceholderTable() {
+            const headerRow = placeholderTable.querySelector('thead tr');
+            
+            // Clear existing headers (except select and actions)
+            while (headerRow.children.length > 2) {
+                headerRow.removeChild(headerRow.lastChild);
+            }
+            
+            // Add headers for each placeholder with clean display names
+            placeholders.forEach(placeholder => {
+                const th = document.createElement('th');
+                th.textContent = placeholderDisplayNames[placeholder];
+                headerRow.appendChild(th);
+            });
+            
+            // Clear existing body rows
+            const tbody = placeholderTable.querySelector('tbody');
+            tbody.innerHTML = '';
+            
+            // Add an empty row
+            addEmptyRow();
+        }
+
+        // Function to populate table from Excel data
+        function populateTableFromExcel() {
+            tableData = [];
+            
+            // Clear existing body rows
+            const tbody = placeholderTable.querySelector('tbody');
+            tbody.innerHTML = '';
+            
+            // For each Excel row, create a table row
+            excelData.forEach((row, index) => {
+                const rowData = {};
+                
+                // Map Excel columns to placeholders
+                placeholders.forEach(placeholder => {
+                    const displayName = placeholderDisplayNames[placeholder];
+                    
+                    // Try to find a matching column in the Excel data
+                    if (row[displayName] !== undefined) {
+                        rowData[placeholder] = row[displayName];
+                    } else {
+                        // Try case-insensitive match
+                        const key = Object.keys(row).find(k => 
+                            k.toLowerCase() === displayName.toLowerCase());
+                        
+                        if (key) {
+                            rowData[placeholder] = row[key];
+                        } else if (displayName === 'Date') {
+                            // Special handling for Date placeholder
+                            rowData[placeholder] = getCurrentFormattedDate();
+                        } else {
+                            rowData[placeholder] = '';
+                        }
+                    }
+                });
+                
+                // Special handling for date if not found
+                if (!rowData['Date'] && placeholders.includes('Date')) {
+                    rowData['Date'] = getCurrentFormattedDate();
+                }
+                
+                addLog(`Row ${index+1}: Mapped data for ID ${row.ID || index}`, 'info');
+                tableData.push(rowData);
+                addTableRow(rowData);
+            });
+        }
+
+        // Helper to get current date in "%b %d, %Y" format (e.g., Apr 6, 2025)
+        function getCurrentFormattedDate() {
+            const date = new Date();
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+        }
+
+        // Function to add an empty row to the table
+        function addEmptyRow() {
+            const emptyData = {};
+            placeholders.forEach(placeholder => {
+                const displayName = placeholderDisplayNames[placeholder];
+                if (displayName === 'Date') {
+                    // Special handling for Date placeholder
+                    emptyData[placeholder] = getCurrentFormattedDate();
+                } else {
+                    emptyData[placeholder] = '';
+                }
+            });
+            
+            tableData.push(emptyData);
+            addTableRow(emptyData);
+        }
+
+        // Function to add a row to the table with the given data
+        function addTableRow(rowData) {
+            const tbody = placeholderTable.querySelector('tbody');
+            const tr = document.createElement('tr');
+            
+            // Checkbox cell
+            const checkboxCell = document.createElement('td');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'row-checkbox';
+            checkboxCell.appendChild(checkbox);
+            tr.appendChild(checkboxCell);
+            
+            // Actions cell
+            const actionsCell = document.createElement('td');
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.className = 'btn btn-accent';
+            deleteBtn.style.padding = '4px 8px';
+            deleteBtn.style.fontSize = '0.8rem';
+            deleteBtn.addEventListener('click', () => {
+                const index = Array.from(tbody.children).indexOf(tr);
+                tableData.splice(index, 1);
+                tbody.removeChild(tr);
+            });
+            actionsCell.appendChild(deleteBtn);
+            tr.appendChild(actionsCell);
+            
+            // Data cells
+            placeholders.forEach(placeholder => {
+                const td = document.createElement('td');
+                const textarea = document.createElement('textarea');
+                textarea.value = rowData[placeholder] || '';
+                textarea.addEventListener('input', (e) => {
+                    const index = Array.from(tbody.children).indexOf(tr);
+                    tableData[index][placeholder] = e.target.value;
+                });
+                
+                // Make date fields special
+                if (placeholderDisplayNames[placeholder] === 'Date') {
+                    textarea.style.minHeight = '40px';  // Smaller height for date
+                }
+                
+                td.appendChild(textarea);
+                tr.appendChild(td);
+            });
+            
+            tbody.appendChild(tr);
+        }
+
+        // Function to select all rows
+        function selectAllRows() {
+            document.querySelectorAll('.row-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            selectAllCheckbox.checked = true;
+        }
+
+        // Function to deselect all rows
+        function deselectAllRows() {
+            document.querySelectorAll('.row-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            selectAllCheckbox.checked = false;
+        }
+
+        // Function to toggle all checkboxes based on "Select All" checkbox
+        function toggleAllCheckboxes() {
+            const isChecked = selectAllCheckbox.checked;
+            document.querySelectorAll('.row-checkbox').forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+        }
+
+        // Function to generate documents for selected rows
+        async function generateSelectedDocuments() {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            const selectedIndices = [];
+            
+            checkboxes.forEach((checkbox, index) => {
+                if (checkbox.checked) {
+                    selectedIndices.push(index);
+                }
+            });
+            
+            if (selectedIndices.length === 0) {
+                showStatus('Please select at least one row.', 'error');
+                return;
+            }
+            
+            addLog(`Generating documents for ${selectedIndices.length} selected rows...`, 'info');
+            showStatus(`Generating ${selectedIndices.length} documents...`, 'success');
+            
+            // Show progress bar
+            progressBarContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            
+            // Show log container
+            logContainer.classList.remove('hidden');
+            
+            try {
+                // For each selected row
+                for (let i = 0; i < selectedIndices.length; i++) {
+                    const index = selectedIndices[i];
+                    const rowData = tableData[index];
+                    
+                    // Update progress
+                    const progress = Math.round((i / selectedIndices.length) * 100);
+                    progressBar.style.width = progress + '%';
+                    
+                    // Generate a file identifier
+                    let fileId = 'document_' + (index + 1);
+                    if (rowData['ID']) {
+                        fileId = rowData['ID'];
+                    }
+                    
+                    addLog(`Processing row ${index + 1} (ID: ${fileId})...`, 'info');
+                    
+                    // Create and download Word document
+                    const docxBlob = await createModifiedDocx(rowData, fileId);
+                    saveAs(docxBlob, `${fileId}.docx`);
+                    addLog(`Generated Word document: ${fileId}.docx`, 'success');
+                    
+                    // Create and download PDF
+                    const pdfBlob = await convertWordToPdf(docxBlob, rowData, fileId);
+                    saveAs(pdfBlob, `${fileId}.pdf`);
+                    addLog(`Generated PDF document: ${fileId}.pdf`, 'success');
+                }
+                
+                // Complete progress bar
+                progressBar.style.width = '100%';
+                
+                addLog(`Successfully generated ${selectedIndices.length} documents in both DOCX and PDF formats.`, 'success');
+                showStatus(`Successfully generated ${selectedIndices.length} documents.`, 'success');
+                
+                // Hide progress bar after a delay
+                setTimeout(() => {
+                    progressBarContainer.classList.add('hidden');
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error generating documents:', error);
+                addLog(`Error generating documents: ${error.message}`, 'error');
+                showStatus('Error generating documents: ' + error.message, 'error');
+                progressBarContainer.classList.add('hidden');
+            }
+        }
+
+        // Function to create a modified docx with replaced placeholders
+        async function createModifiedDocx(rowData, fileId) {
+            try {
+                // Check if we have the zipContent
+                if (!zipContent) {
+                    throw new Error("Template not loaded properly");
+                }
+                
+                // Clone the zip to avoid modifying the original
+                const newZip = new JSZip();
+                
+                // Copy all files from the original zip
+                for (const filename of Object.keys(zipContent.files)) {
+                    const file = zipContent.files[filename];
+                    if (!file.dir) {
+                        const content = await zipContent.file(filename).async('arraybuffer');
+                        newZip.file(filename, content);
+                    } else {
+                        newZip.folder(filename);
+                    }
+                }
+                
+                // Get document.xml
+                let documentXml = await newZip.file("word/document.xml").async("text");
+                
+                addLog(`Replacing placeholders in document for ${fileId}...`, 'info');
+                
+                // Replace placeholders in the XML
+                placeholders.forEach(placeholder => {
+                    const displayName = placeholderDisplayNames[placeholder];
+                    let value = rowData[placeholder] || '';
+                    
+                    // Handle multiline text by replacing newlines with Word's line break
+                    if (value.includes('\n')) {
+                        // Need to handle XML structure correctly for line breaks
+                        const safeValue = value
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/\n/g, '</w:t><w:br/><w:t>');
+                            
+                        // Replace the placeholder in the XML
+                        const regex = new RegExp(`\\[\\[${displayName}\\]\\]`, 'g');
+                        documentXml = documentXml.replace(regex, safeValue);
+                    } else {
+                        // Simple replacement for single-line text
+                        const safeValue = value
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;');
+                            
+                        const regex = new RegExp(`\\[\\[${displayName}\\]\\]`, 'g');
+                        documentXml = documentXml.replace(regex, safeValue);
+                    }
+                });
+                
+                // Update the document.xml in the zip
+                newZip.file("word/document.xml", documentXml);
+                
+                // Generate the modified docx
+                const modifiedDocx = await newZip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+                return modifiedDocx;
+                
+            } catch (error) {
+                console.error('Error creating modified docx:', error);
+                addLog(`Error creating modified document: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Function to convert Word document to PDF
+        async function convertWordToPdf(docxBlob, rowData, fileId) {
+            try {
+                addLog(`Converting DOCX to PDF for ${fileId}...`, 'info');
+                
+                // Create HTML content from the document data
+                let htmlContent = wordContent;
+                
+                // Replace placeholders with actual content
+                placeholders.forEach(placeholder => {
+                    const displayName = placeholderDisplayNames[placeholder];
+                    let value = rowData[placeholder] || '';
+                    
+                    // If value contains newlines, replace with <br> for HTML
+                    if (value.includes('\n')) {
+                        value = value.replace(/\n/g, '<br>');
+                    }
+                    
+                    const regex = new RegExp(`\\[\\[${displayName}\\]\\]`, 'g');
+                    htmlContent = htmlContent.replace(regex, value);
+                });
+                
+                // Create a temporary div to hold the content
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = htmlContent;
+                tempDiv.style.width = '8.5in';
+                tempDiv.style.padding = '1in';
+                tempDiv.style.backgroundColor = 'white';
+                tempDiv.style.color = 'black';
+                tempDiv.style.fontSize = '12pt';
+                tempDiv.style.lineHeight = '1.5';
+                tempDiv.style.position = 'absolute';
+                tempDiv.style.left = '-9999px';
+                
+                document.body.appendChild(tempDiv);
+                
+                // Initialize jsPDF
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'pt',
+                    format: 'letter'
+                });
+                
+                // Convert HTML to canvas and then to PDF
+                const canvas = await html2canvas(tempDiv, {
+                    scale: 2, // Higher scale for better quality
+                    useCORS: true,
+                    logging: false
+                });
+                
+                // Remove the temporary div
+                document.body.removeChild(tempDiv);
+                
+                // Add the canvas image to PDF
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                const imgWidth = canvas.width;
+                const imgHeight = canvas.height;
+                
+                // Calculate the scale to fit the image to the page
+                const scale = Math.min(
+                    pageWidth / imgWidth,
+                    pageHeight / imgHeight
+                );
+                
+                const scaledWidth = imgWidth * scale;
+                const scaledHeight = imgHeight * scale;
+                
+                // Calculate centering
+                const x = (pageWidth - scaledWidth) / 2;
+                const y = 0;
+                
+                pdf.addImage(imgData, 'JPEG', x, y, scaledWidth, scaledHeight);
+                
+                // If the content is taller than one page, add more pages
+                let currentHeight = scaledHeight;
+                while (currentHeight > pageHeight) {
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', x, -(currentHeight - pageHeight), scaledWidth, scaledHeight);
+                    currentHeight -= pageHeight;
+                }
+                
+                // Get PDF as blob
+                const pdfBlob = pdf.output('blob');
+                return pdfBlob;
+                
+            } catch (error) {
+                console.error('Error converting to PDF:', error);
+                addLog(`Error converting to PDF: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Function to show status message
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status-message ' + type;
+            statusMessage.classList.remove('hidden');
+            
+            // Hide after 5 seconds for success messages
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusMessage.classList.add('hidden');
+                }, 5000);
+            }
+        }
+
+        // Function to add log entry
+        function addLog(message, type) {
+            logContainer.classList.remove('hidden');
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            
+            logEntries.appendChild(logEntry);
+            logEntries.scrollTop = logEntries.scrollHeight;
+        }
+    </script>
+</body>
+</html>
