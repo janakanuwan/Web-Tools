@@ -55,7 +55,7 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
-        .files-section, .search-section {
+        .files-section, .search-section, .sample-files-section {
             margin-bottom: 25px;
         }
 
@@ -120,12 +120,16 @@
         .table-container {
             overflow-x: auto;
             margin-top: 20px;
+            max-width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 15px;
+            min-width: 650px; /* Ensures table has a minimum width */
         }
 
         th, td {
@@ -138,6 +142,9 @@
         th {
             background-color: var(--secondary-color);
             font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
 
         .table-actions {
@@ -168,6 +175,11 @@
 
         .btn-accent:hover {
             background-color: #e05151;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.85rem;
         }
 
         .file-name {
@@ -275,6 +287,19 @@
         .log-error {
             color: #dc3545;
         }
+
+        /* Sample files section */
+        .sample-files-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .sample-btn {
+            font-size: 0.85rem;
+            flex: 1;
+            min-width: 120px;
+        }
     </style>
 </head>
 <body>
@@ -282,6 +307,14 @@
     
     <div class="container">
         <div class="controls">
+            <div class="sample-files-section">
+                <h2>Sample Files</h2>
+                <div class="sample-files-buttons">
+                    <button id="downloadTemplateBtn" class="btn sample-btn">Download Sample Template</button>
+                    <button id="downloadExcelBtn" class="btn sample-btn">Download Sample Excel</button>
+                </div>
+            </div>
+            
             <div class="files-section">
                 <h2>Upload Files</h2>
                 <div class="file-input-container">
@@ -361,6 +394,10 @@
         let excelData = [];
         let tableData = [];
         let zipContent = null; // Store the entire docx zip
+        
+        // Sample file paths (instead of content)
+        const sampleTemplatePath = "RecommendationLetter_Template.docx";
+        const sampleExcelPath = "Applications-details.xlsx";
 
         // DOM elements
         const wordTemplateInput = document.getElementById('wordTemplate');
@@ -379,6 +416,8 @@
         const progressBar = document.getElementById('progressBar');
         const logContainer = document.getElementById('logContainer');
         const logEntries = document.getElementById('logEntries');
+        const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
+        const downloadExcelBtn = document.getElementById('downloadExcelBtn');
 
         // Event listeners
         wordTemplateInput.addEventListener('change', handleWordTemplateUpload);
@@ -388,6 +427,54 @@
         deselectAllBtn.addEventListener('click', deselectAllRows);
         generateDocsBtn.addEventListener('click', generateSelectedDocuments);
         selectAllCheckbox.addEventListener('change', toggleAllCheckboxes);
+        downloadTemplateBtn.addEventListener('click', downloadSampleTemplate);
+        downloadExcelBtn.addEventListener('click', downloadSampleExcel);
+
+        // Function to download sample template - now using direct file path
+        function downloadSampleTemplate() {
+            addLog('Downloading sample template...', 'info');
+            
+            // Download the template file directly from the specified path
+            fetch(sampleTemplatePath)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    saveAs(blob, "RecommendationLetter_Template.docx");
+                    addLog('Sample template downloaded successfully', 'success');
+                })
+                .catch(error => {
+                    console.error('Error downloading template:', error);
+                    addLog(`Error downloading template: ${error.message}`, 'error');
+                    showStatus(`Error downloading template: ${error.message}`, 'error');
+                });
+        }
+
+        // Function to download sample Excel data - now using direct file path
+        function downloadSampleExcel() {
+            addLog('Downloading sample Excel data...', 'info');
+            
+            // Download the Excel file directly from the specified path
+            fetch(sampleExcelPath)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    saveAs(blob, "Applications-details.xlsx");
+                    addLog('Sample Excel data downloaded successfully', 'success');
+                })
+                .catch(error => {
+                    console.error('Error downloading Excel data:', error);
+                    addLog(`Error downloading Excel data: ${error.message}`, 'error');
+                    showStatus(`Error downloading Excel data: ${error.message}`, 'error');
+                });
+        }
 
         // Function to handle Word template upload
         async function handleWordTemplateUpload(event) {
@@ -632,9 +719,7 @@
             const actionsCell = document.createElement('td');
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = 'Delete';
-            deleteBtn.className = 'btn btn-accent';
-            deleteBtn.style.padding = '4px 8px';
-            deleteBtn.style.fontSize = '0.8rem';
+            deleteBtn.className = 'btn btn-accent btn-sm';
             deleteBtn.addEventListener('click', () => {
                 const index = Array.from(tbody.children).indexOf(tr);
                 tableData.splice(index, 1);
@@ -738,8 +823,8 @@
                     saveAs(docxBlob, `${fileId}.docx`);
                     addLog(`Generated Word document: ${fileId}.docx`, 'success');
                     
-                    // Create and download PDF
-                    const pdfBlob = await convertWordToPdf(docxBlob, rowData, fileId);
+                    // Create and download PDF - improved method
+                    const pdfBlob = await createPDFFromDocx(docxBlob, fileId);
                     saveAs(pdfBlob, `${fileId}.pdf`);
                     addLog(`Generated PDF document: ${fileId}.pdf`, 'success');
                 }
@@ -835,43 +920,241 @@
             }
         }
 
-        // Function to convert Word document to PDF
-        async function convertWordToPdf(docxBlob, rowData, fileId) {
+        // Improved PDF creation from DOCX using a more direct approach
+        async function createPDFFromDocx(docxBlob, fileId) {
+            // generat key from https://cloudconvert.com/dashboard/api/v2/keys
+            const API_KEY = '';
+            
             try {
-                addLog(`Converting DOCX to PDF for ${fileId}...`, 'info');
+                addLog(`Creating PDF for ${fileId} using CloudConvert...`, 'info');
                 
-                // Create HTML content from the document data
-                let htmlContent = wordContent;
+                // Step 1: Create a job
+                const createJobResponse = await fetch('https://api.cloudconvert.com/v2/jobs', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "tasks": {
+                            "upload-my-file": {
+                                "operation": "import/upload"
+                            },
+                            "convert-my-file": {
+                                "operation": "convert",
+                                "input": "upload-my-file",
+                                "output_format": "pdf",
+                                "some_other_option": "value"
+                            },
+                            "export-my-file": {
+                                "operation": "export/url",
+                                "input": "convert-my-file"
+                            }
+                        }
+                    })
+                });
+
+                if (!createJobResponse.ok) {
+                    const errorText = await createJobResponse.text();
+                    throw new Error(`Failed to create job: ${createJobResponse.status} ${createJobResponse.statusText} - ${errorText}`);
+                }
+
+                const jobData = await createJobResponse.json();
+                const jobId = jobData.data.id;
                 
-                // Replace placeholders with actual content
-                placeholders.forEach(placeholder => {
-                    const displayName = placeholderDisplayNames[placeholder];
-                    let value = rowData[placeholder] || '';
-                    
-                    // If value contains newlines, replace with <br> for HTML
-                    if (value.includes('\n')) {
-                        value = value.replace(/\n/g, '<br>');
-                    }
-                    
-                    const regex = new RegExp(`\\[\\[${displayName}\\]\\]`, 'g');
-                    htmlContent = htmlContent.replace(regex, value);
+                // Step 2: Upload the file to the provided upload URL
+                const uploadTask = jobData.data.tasks.find(task => task.name === 'upload-my-file');
+                const uploadUrl = uploadTask.result.form.url;
+                const formData = new FormData();
+                
+                // Add all the form fields from the result
+                Object.entries(uploadTask.result.form.parameters).forEach(([key, value]) => {
+                    formData.append(key, value);
                 });
                 
-                // Create a temporary div to hold the content
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = htmlContent;
-                tempDiv.style.width = '8.5in';
-                tempDiv.style.padding = '1in';
-                tempDiv.style.backgroundColor = 'white';
-                tempDiv.style.color = 'black';
-                tempDiv.style.fontSize = '12pt';
-                tempDiv.style.lineHeight = '1.5';
-                tempDiv.style.position = 'absolute';
-                tempDiv.style.left = '-9999px';
+                // Add the file
+                formData.append('file', docxBlob, `${fileId}.docx`);
                 
-                document.body.appendChild(tempDiv);
+                const uploadResponse = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: formData
+                });
                 
-                // Initialize jsPDF
+                if (!uploadResponse.ok) {
+                    throw new Error(`File upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+                }
+                
+                addLog(`File uploaded successfully for ${fileId}, waiting for conversion...`, 'info');
+                
+                // Step 3: Wait for the job to complete and get the result directly
+                const waitTime = 10000; // Wait 10 seconds for the conversion to complete
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                
+                const jobStatusResponse = await fetch(`https://api.cloudconvert.com/v2/jobs/${jobId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`
+                    }
+                });
+                
+                if (!jobStatusResponse.ok) {
+                    throw new Error(`Job status check failed: ${jobStatusResponse.status} ${jobStatusResponse.statusText}`);
+                }
+                
+                const jobStatus = await jobStatusResponse.json();
+                const exportTask = jobStatus.data.tasks.find(task => task.name === 'export-my-file');
+                
+                // Check if any task failed
+                const failedTask = jobStatus.data.tasks.find(task => task.status === 'error');
+                if (failedTask) {
+                    throw new Error(`Conversion failed: ${failedTask.message || 'Unknown error'}`);
+                }
+                
+                if (!exportTask || exportTask.status !== 'finished') {
+                    throw new Error('Conversion not completed within the allocated time');
+                }
+                
+                // Step 4: Download the converted file
+                if (!exportTask.result || !exportTask.result.files || exportTask.result.files.length === 0) {
+                    throw new Error('No output file found in the conversion result');
+                }
+                
+                const downloadUrl = exportTask.result.files[0].url;
+                const pdfResponse = await fetch(downloadUrl);
+                
+                if (!pdfResponse.ok) {
+                    throw new Error(`PDF download failed: ${pdfResponse.status} ${pdfResponse.statusText}`);
+                }
+                
+                const pdfBlob = await pdfResponse.blob();
+                addLog(`PDF conversion successful for ${fileId}`, 'success');
+                return pdfBlob;
+                
+            } catch (error) {
+                addLog(`Server conversion failed, falling back to client-side method: ${error.message}`, 'warning');
+                return fallbackPDFCreation(docxBlob, fileId);
+            }
+        }
+
+        
+        // Fallback method when server-side conversion isn't available
+        async function fallbackPDFCreation(docxBlob, fileId) {
+            try {
+                addLog(`Creating PDF for ${fileId} using enhanced client-side conversion...`, 'info');
+                
+                // Create a temporary iframe with proper dimensions for a letter page
+                const iframe = document.createElement('iframe');
+                iframe.style.width = '8.5in';
+                iframe.style.height = '11in';
+                iframe.style.position = 'fixed';
+                iframe.style.left = '-9999px';
+                document.body.appendChild(iframe);
+                
+                // Convert DOCX to HTML with enhanced options
+                const result = await mammoth.convertToHtml(
+                    { arrayBuffer: await docxBlob.arrayBuffer() },
+                    { 
+                        preserveStyles: true,
+                        includeEmbeddedStyleMap: true,
+                        includeDefaultStyleMap: true,
+                        convertImage: mammoth.images.imgElement(function(image) {
+                            return image.read("base64").then(function(imageBuffer) {
+                                return {
+                                    src: "data:" + image.contentType + ";base64," + imageBuffer,
+                                    style: image.altText || ''  // Try to use Word's positioning hints if available
+                                };
+                            });
+                        })
+                    }
+                );
+                
+                // Enhanced CSS for better Word-like formatting
+                const enhancedCSS = `
+                    @page {
+                        size: 8.5in 11in;
+                        margin: 1in;
+                    }
+                    body {
+                        font-family: 'Times New Roman', serif;
+                        font-size: 12pt;
+                        line-height: 1.5;
+                        color: black;
+                        margin: 0;
+                        padding: 0;
+                        counter-reset: page;
+                    }
+                    img {
+                        max-width: 100%;
+                        height: auto;
+                        position: relative;
+                    }
+                    table {
+                        border-collapse: collapse;
+                        width: 100%;
+                    }
+                    td, th {
+                        border: 1px solid #ddd;
+                        padding: 8px;
+                    }
+                    /* Word-specific spacing styles */
+                    p {
+                        margin-bottom: 10pt;
+                        position: relative;
+                    }
+                    h1, h2, h3, h4 {
+                        font-weight: bold;
+                        margin-top: 12pt;
+                        margin-bottom: 6pt;
+                    }
+                    /* Add more Word-specific styling here */
+                `;
+                
+                // Add the enhanced HTML content to the iframe
+                iframe.contentDocument.open();
+                iframe.contentDocument.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <title>${fileId}</title>
+                        <style>${enhancedCSS}</style>
+                    </head>
+                    <body>${result.value}</body>
+                    </html>
+                `);
+                iframe.contentDocument.close();
+                
+                // Wait for all content and images to load
+                await new Promise(resolve => {
+                    const checkReady = () => {
+                        const images = iframe.contentDocument.querySelectorAll('img');
+                        let allLoaded = true;
+                        for (const img of images) {
+                            if (!img.complete) {
+                                allLoaded = false;
+                                break;
+                            }
+                        }
+                        if (allLoaded && iframe.contentDocument.readyState === 'complete') {
+                            resolve();
+                        } else {
+                            setTimeout(checkReady, 100);
+                        }
+                    };
+                    setTimeout(checkReady, 100);
+                });
+                
+                // Use improved html2canvas settings
+                const canvas = await html2canvas(iframe.contentDocument.body, {
+                    scale: 3, // Higher resolution for better quality
+                    useCORS: true,
+                    allowTaint: true,
+                    letterRendering: true,
+                    logging: false,
+                    imageTimeout: 0,
+                    backgroundColor: '#ffffff'
+                });
+                
+                // Create a PDF with proper dimensions for a letter page
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF({
                     orientation: 'portrait',
@@ -879,56 +1162,65 @@
                     format: 'letter'
                 });
                 
-                // Convert HTML to canvas and then to PDF
-                const canvas = await html2canvas(tempDiv, {
-                    scale: 2, // Higher scale for better quality
-                    useCORS: true,
-                    logging: false
-                });
-                
-                // Remove the temporary div
-                document.body.removeChild(tempDiv);
-                
-                // Add the canvas image to PDF
-                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                // Calculate page dimensions
                 const pageWidth = pdf.internal.pageSize.getWidth();
                 const pageHeight = pdf.internal.pageSize.getHeight();
-                const imgWidth = canvas.width;
-                const imgHeight = canvas.height;
                 
-                // Calculate the scale to fit the image to the page
-                const scale = Math.min(
-                    pageWidth / imgWidth,
-                    pageHeight / imgHeight
-                );
+                // Create a more intelligent paging system for multi-page documents
+                const contentHeight = canvas.height;
+                const contentWidth = canvas.width;
+                const scale = pageWidth / contentWidth;
+                const scaledHeight = contentHeight * scale;
                 
-                const scaledWidth = imgWidth * scale;
-                const scaledHeight = imgHeight * scale;
-                
-                // Calculate centering
-                const x = (pageWidth - scaledWidth) / 2;
-                const y = 0;
-                
-                pdf.addImage(imgData, 'JPEG', x, y, scaledWidth, scaledHeight);
-                
-                // If the content is taller than one page, add more pages
-                let currentHeight = scaledHeight;
-                while (currentHeight > pageHeight) {
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'JPEG', x, -(currentHeight - pageHeight), scaledWidth, scaledHeight);
-                    currentHeight -= pageHeight;
+                // If content is taller than a single page, split it across multiple pages
+                if (scaledHeight > pageHeight) {
+                    const totalPages = Math.ceil(scaledHeight / pageHeight);
+                    
+                    for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+                        if (pageNum > 0) {
+                            pdf.addPage();
+                        }
+                        
+                        // Calculate source and destination dimensions for this page
+                        const sourceY = (pageHeight / scale) * pageNum;
+                        const sourceHeight = Math.min(pageHeight / scale, contentHeight - sourceY);
+                        
+                        pdf.addImage(
+                            canvas.toDataURL('image/jpeg', 1.0),
+                            'JPEG',
+                            0, 0,
+                            pageWidth, pageHeight * (contentHeight / sourceHeight),
+                            null,
+                            'FAST',
+                            0,
+                            -sourceY * scale // Vertical offset to show correct portion
+                        );
+                    }
+                } else {
+                    // For single page documents, center the content
+                    pdf.addImage(
+                        canvas.toDataURL('image/jpeg', 1.0),
+                        'JPEG',
+                        0, (pageHeight - scaledHeight) / 2,
+                        pageWidth, scaledHeight
+                    );
                 }
                 
-                // Get PDF as blob
+                // Clean up
+                document.body.removeChild(iframe);
+                
+                // Return the PDF blob
                 const pdfBlob = pdf.output('blob');
+                addLog(`Enhanced PDF creation completed for ${fileId}`, 'success');
                 return pdfBlob;
                 
             } catch (error) {
-                console.error('Error converting to PDF:', error);
-                addLog(`Error converting to PDF: ${error.message}`, 'error');
+                console.error('Error in fallback PDF creation:', error);
+                addLog(`Error in fallback PDF creation: ${error.message}`, 'error');
                 throw error;
             }
         }
+
 
         // Function to show status message
         function showStatus(message, type) {
