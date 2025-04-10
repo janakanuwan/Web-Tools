@@ -1031,15 +1031,322 @@
                 
             } catch (error) {
                 addLog(`Server conversion failed, falling back to client-side method: ${error.message}`, 'warning');
-                return fallbackPDFCreation(docxBlob, fileId);
+                return enhancedDocxToPdfConversion(docxBlob, fileId);
             }
         }
 
-        
-        // Fallback method when server-side conversion isn't available
-        async function fallbackPDFCreation(docxBlob, fileId) {
+        /**
+         * Enhanced DOCX to PDF conversion with multiple fallback strategies
+         * @param {Blob} docxBlob - The DOCX file as a Blob
+         * @param {string} fileId - Identifier for the file being processed
+         * @returns {Promise<Blob>} - PDF file as a Blob
+         */
+        async function enhancedDocxToPdfConversion(docxBlob, fileId) {
             try {
-                addLog(`Creating PDF for ${fileId} using enhanced client-side conversion...`, 'info');
+                addLog(`Starting PDF conversion for ${fileId}`, 'info');
+                
+                // Try MS Word automation first if available
+                const msWordResult = await tryMicrosoftWordConversion(docxBlob, fileId);
+                if (msWordResult) return msWordResult;
+                
+                // Try PDF.js + PSPDFKit approach
+                const pdfLibResult = await tryPdfLibraryConversion(docxBlob, fileId);
+                if (pdfLibResult) return pdfLibResult;
+                
+                // Finally fall back to the iframe + html2canvas approach
+                return await iframeHtmlCanvasConversion(docxBlob, fileId);
+            } catch (error) {
+                console.error('All PDF conversion methods failed:', error);
+                addLog(`Critical error in PDF conversion: ${error.message}`, 'error');
+                throw new Error(`PDF conversion failed for ${fileId}: ${error.message}`);
+            }
+        }
+
+        /**
+         * Try to use installed Microsoft Word via ActiveX (Windows) or AppleScript (Mac)
+         */
+        async function tryMicrosoftWordConversion(docxBlob, fileId) {
+            try {
+                addLog(`Attempting MS Word conversion for ${fileId}`, 'info');
+                
+                // Check if we're in a compatible environment
+                const isWindows = navigator.userAgent.indexOf('Windows') !== -1;
+                const isMac = navigator.userAgent.indexOf('Mac') !== -1;
+                
+                if (!isWindows && !isMac) {
+                    addLog('MS Word conversion only available on Windows/Mac', 'info');
+                    return null;
+                }
+
+                // For Windows using ActiveX
+                if (isWindows && window.ActiveXObject !== undefined) {
+                    // Save temp file using the File System Access API
+                    try {
+                        // Create a temp file handler
+                        const tempDocxHandle = await window.showSaveFilePicker({
+                            suggestedName: `${fileId}_temp.docx`,
+                            types: [{
+                                description: 'Word Document',
+                                accept: {'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']}
+                            }],
+                            excludeAcceptAllOption: true
+                        });
+                        
+                        // Write the docx blob to the file
+                        const writableStream = await tempDocxHandle.createWritable();
+                        await writableStream.write(docxBlob);
+                        await writableStream.close();
+                        
+                        // Create temp PDF file handler
+                        const tempPdfHandle = await window.showSaveFilePicker({
+                            suggestedName: `${fileId}.pdf`,
+                            types: [{
+                                description: 'PDF Document',
+                                accept: {'application/pdf': ['.pdf']}
+                            }],
+                            excludeAcceptAllOption: true
+                        });
+                        
+                        // Use ActiveX to open Word and export as PDF
+                        const wordApp = new ActiveXObject("Word.Application");
+                        wordApp.Visible = false;
+                        
+                        const docPath = await tempDocxHandle.getFile().then(file => file.path);
+                        const pdfPath = await tempPdfHandle.getFile().then(file => file.path);
+                        
+                        const doc = wordApp.Documents.Open(docPath);
+                        doc.ExportAsFixedFormat(pdfPath, 17); // 17 = PDF format
+                        doc.Close();
+                        wordApp.Quit();
+                        
+                        // Read the PDF back
+                        const pdfFile = await tempPdfHandle.getFile();
+                        const pdfBlob = await pdfFile.arrayBuffer().then(buffer => new Blob([buffer], {type: 'application/pdf'}));
+                        
+                        addLog(`MS Word conversion successful for ${fileId}`, 'success');
+                        return pdfBlob;
+                    } catch (fsaError) {
+                        console.error('File System Access API error:', fsaError);
+                        addLog('MS Word conversion failed: File System Access issue', 'warning');
+                        return null;
+                    }
+                }
+                
+                // For Mac using browser extension or native messaging
+                if (isMac) {
+                    // Check if our helper extension is installed
+                    if (window.macOSWordHelper) {
+                        const result = await window.macOSWordHelper.convertDocxToPdf({
+                            docxData: await docxBlob.arrayBuffer(),
+                            filename: fileId
+                        });
+                        
+                        if (result && result.success) {
+                            addLog(`Mac Word conversion successful for ${fileId}`, 'success');
+                            return new Blob([result.pdfData], {type: 'application/pdf'});
+                        }
+                    }
+                }
+                
+                addLog('MS Word not available or conversion failed', 'info');
+                return null;
+            } catch (error) {
+                console.error('MS Word conversion error:', error);
+                addLog(`MS Word conversion failed: ${error.message}`, 'warning');
+                return null;
+            }
+        }
+
+        /**
+         * Try conversion using PDF libraries (pdf-lib, jspdf, pdfmake)
+         */
+        async function tryPdfLibraryConversion(docxBlob, fileId) {
+            try {
+                addLog(`Attempting PDF library conversion for ${fileId}`, 'info');
+                
+                // Convert DOCX to HTML with enhanced options
+                const mammothResult = await mammoth.convertToHtml(
+                    { arrayBuffer: await docxBlob.arrayBuffer() },
+                    { 
+                        preserveStyles: true,
+                        includeEmbeddedStyleMap: true,
+                        includeDefaultStyleMap: true,
+                        styleMap: [
+                            "p[style-name='Title'] => h1.title:fresh",
+                            "p[style-name='Heading 1'] => h1:fresh",
+                            "p[style-name='Heading 2'] => h2:fresh",
+                            "p[style-name='Heading 3'] => h3:fresh",
+                            "p[style-name='Normal'] => p:fresh",
+                            "table => table.docx-table:fresh",
+                            "r[style-name='Strong'] => strong:fresh"
+                        ],
+                        convertImage: mammoth.images.imgElement(function(image) {
+                            return image.read("base64").then(function(imageBuffer) {
+                                return {
+                                    src: "data:" + image.contentType + ";base64," + imageBuffer,
+                                    class: "docx-image",
+                                    alt: image.altText || "",
+                                    style: `max-width: 100%; ${image.altText || ""}`
+                                };
+                            });
+                        })
+                    }
+                );
+                
+                // If PDFMake is available, use it for better layout control
+                if (window.pdfMake) {
+                    // Create a temporary DOM parser to work with the HTML
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(mammothResult.value, 'text/html');
+                    
+                    // Extract content and format for pdfmake
+                    const content = [];
+                    const styles = {};
+                    
+                    // Process headings, paragraphs, tables, etc.
+                    Array.from(doc.body.children).forEach(element => {
+                        switch(element.tagName.toLowerCase()) {
+                            case 'h1':
+                                content.push({ text: element.textContent, style: 'heading1', margin: [0, 20, 0, 10] });
+                                break;
+                            case 'h2':
+                                content.push({ text: element.textContent, style: 'heading2', margin: [0, 15, 0, 10] });
+                                break;
+                            case 'h3':
+                                content.push({ text: element.textContent, style: 'heading3', margin: [0, 10, 0, 5] });
+                                break;
+                            case 'p':
+                                // Check for inline styles or elements
+                                if (element.innerHTML.includes('<')) {
+                                    // Complex paragraph with formatting
+                                    const inlineContent = processInlineElements(element);
+                                    content.push({ text: inlineContent, margin: [0, 0, 0, 10] });
+                                } else {
+                                    // Simple paragraph
+                                    content.push({ text: element.textContent, margin: [0, 0, 0, 10] });
+                                }
+                                break;
+                            case 'table':
+                                const tableData = [];
+                                Array.from(element.querySelectorAll('tr')).forEach(row => {
+                                    const rowData = [];
+                                    Array.from(row.querySelectorAll('td, th')).forEach(cell => {
+                                        rowData.push(cell.textContent.trim());
+                                    });
+                                    tableData.push(rowData);
+                                });
+                                
+                                content.push({
+                                    table: {
+                                        headerRows: element.querySelector('th') ? 1 : 0,
+                                        widths: Array(tableData[0].length).fill('*'),
+                                        body: tableData
+                                    },
+                                    margin: [0, 5, 0, 15]
+                                });
+                                break;
+                            case 'img':
+                                content.push({
+                                    image: element.src,
+                                    width: Math.min(element.width || 400, 500),
+                                    margin: [0, 5, 0, 5]
+                                });
+                                break;
+                            case 'ul':
+                            case 'ol':
+                                const listItems = [];
+                                Array.from(element.querySelectorAll('li')).forEach(item => {
+                                    listItems.push(item.textContent.trim());
+                                });
+                                
+                                content.push({
+                                    [element.tagName.toLowerCase() === 'ul' ? 'ul' : 'ol']: listItems,
+                                    margin: [0, 5, 0, 15]
+                                });
+                                break;
+                        }
+                    });
+                    
+                    // Helper function to process inline elements
+                    function processInlineElements(element) {
+                        const result = [];
+                        Array.from(element.childNodes).forEach(node => {
+                            if (node.nodeType === Node.TEXT_NODE) {
+                                result.push(node.textContent);
+                            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                                switch(node.tagName.toLowerCase()) {
+                                    case 'strong':
+                                    case 'b':
+                                        result.push({ text: node.textContent, bold: true });
+                                        break;
+                                    case 'em':
+                                    case 'i':
+                                        result.push({ text: node.textContent, italics: true });
+                                        break;
+                                    case 'u':
+                                        result.push({ text: node.textContent, decoration: 'underline' });
+                                        break;
+                                    case 'a':
+                                        result.push({ text: node.textContent, link: node.href, color: 'blue' });
+                                        break;
+                                    default:
+                                        result.push(node.textContent);
+                                }
+                            }
+                        });
+                        return result;
+                    }
+                    
+                    // Set up the document definition
+                    const docDefinition = {
+                        content: content,
+                        styles: {
+                            heading1: {
+                                fontSize: 18,
+                                bold: true,
+                            },
+                            heading2: {
+                                fontSize: 16,
+                                bold: true,
+                            },
+                            heading3: {
+                                fontSize: 14,
+                                bold: true,
+                            }
+                        },
+                        defaultStyle: {
+                            fontSize: 12,
+                            font: 'Times'
+                        },
+                        pageSize: 'LETTER',
+                        pageMargins: [40, 60, 40, 60]
+                    };
+                    
+                    // Generate PDF
+                    const pdfDocGenerator = pdfMake.createPdf(docDefinition);
+                    return new Promise((resolve, reject) => {
+                        pdfDocGenerator.getBlob((blob) => {
+                            addLog(`PDF library conversion successful for ${fileId}`, 'success');
+                            resolve(blob);
+                        });
+                    });
+                }
+                
+                // If no PDF generation libs available
+                return null;
+            } catch (error) {
+                console.error('PDF library conversion error:', error);
+                addLog(`PDF library conversion failed: ${error.message}`, 'warning');
+                return null;
+            }
+        }
+
+        /**
+         * Fall back to iframe + html2canvas approach (improved version)
+         */
+        async function iframeHtmlCanvasConversion(docxBlob, fileId) {
+            try {
+                addLog(`Creating PDF for ${fileId} using client-side HTML rendering...`, 'info');
                 
                 // Create a temporary iframe with proper dimensions for a letter page
                 const iframe = document.createElement('iframe');
@@ -1047,6 +1354,8 @@
                 iframe.style.height = '11in';
                 iframe.style.position = 'fixed';
                 iframe.style.left = '-9999px';
+                iframe.style.border = 'none';
+                iframe.style.overflow = 'hidden';
                 document.body.appendChild(iframe);
                 
                 // Convert DOCX to HTML with enhanced options
@@ -1056,18 +1365,29 @@
                         preserveStyles: true,
                         includeEmbeddedStyleMap: true,
                         includeDefaultStyleMap: true,
+                        styleMap: [
+                            "p[style-name='Title'] => h1.title:fresh",
+                            "p[style-name='Heading 1'] => h1:fresh",
+                            "p[style-name='Heading 2'] => h2:fresh",
+                            "p[style-name='Heading 3'] => h3:fresh",
+                            "p[style-name='Normal'] => p:fresh",
+                            "table => table.docx-table:fresh",
+                            "r[style-name='Strong'] => strong:fresh"
+                        ],
                         convertImage: mammoth.images.imgElement(function(image) {
                             return image.read("base64").then(function(imageBuffer) {
                                 return {
                                     src: "data:" + image.contentType + ";base64," + imageBuffer,
-                                    style: image.altText || ''  // Try to use Word's positioning hints if available
+                                    class: "docx-image",
+                                    alt: image.altText || "",
+                                    style: `max-width: 100%; ${image.altText || ""}`
                                 };
                             });
                         })
                     }
                 );
                 
-                // Enhanced CSS for better Word-like formatting
+                // More comprehensive Word-like CSS
                 const enhancedCSS = `
                     @page {
                         size: 8.5in 11in;
@@ -1079,33 +1399,79 @@
                         line-height: 1.5;
                         color: black;
                         margin: 0;
-                        padding: 0;
+                        padding: 1in;
+                        box-sizing: border-box;
                         counter-reset: page;
                     }
-                    img {
+                    /* Images */
+                    .docx-image {
                         max-width: 100%;
                         height: auto;
-                        position: relative;
+                        display: block;
+                        margin: 10pt auto;
                     }
-                    table {
+                    /* Tables */
+                    .docx-table {
                         border-collapse: collapse;
                         width: 100%;
+                        margin: 12pt 0;
                     }
-                    td, th {
+                    .docx-table td, .docx-table th {
                         border: 1px solid #ddd;
                         padding: 8px;
+                        text-align: left;
                     }
-                    /* Word-specific spacing styles */
-                    p {
-                        margin-bottom: 10pt;
-                        position: relative;
-                    }
-                    h1, h2, h3, h4 {
+                    .docx-table th {
+                        background-color: #f2f2f2;
                         font-weight: bold;
-                        margin-top: 12pt;
+                    }
+                    /* Typography */
+                    p {
+                        margin: 0 0 10pt 0;
+                        text-align: left;
+                        orphans: 2;
+                        widows: 2;
+                    }
+                    h1, h2, h3, h4, h5, h6 {
+                        font-weight: bold;
+                        page-break-after: avoid;
+                    }
+                    h1 {
+                        font-size: 16pt;
+                        margin: 24pt 0 12pt 0;
+                    }
+                    h2 {
+                        font-size: 14pt;
+                        margin: 18pt 0 6pt 0;
+                    }
+                    h3 {
+                        font-size: 13pt;
+                        margin: 14pt 0 6pt 0;
+                    }
+                    h1.title {
+                        font-size: 18pt;
+                        text-align: center;
+                        margin: 24pt 0 24pt 0;
+                    }
+                    /* Lists */
+                    ul, ol {
+                        margin: 12pt 0;
+                        padding-left: 40px;
+                    }
+                    li {
                         margin-bottom: 6pt;
                     }
-                    /* Add more Word-specific styling here */
+                    /* Hyperlinks */
+                    a {
+                        color: blue;
+                        text-decoration: underline;
+                    }
+                    /* Page break control */
+                    .page-break {
+                        page-break-after: always;
+                        height: 0;
+                        display: block;
+                    }
                 `;
                 
                 // Add the enhanced HTML content to the iframe
@@ -1123,38 +1489,38 @@
                 `);
                 iframe.contentDocument.close();
                 
-                // Wait for all content and images to load
-                await new Promise(resolve => {
+                // Wait for all content and images to load with a better promise implementation
+                await new Promise((resolve, reject) => {
+                    let checkCount = 0;
+                    const maxChecks = 50; // 5 seconds max wait time
+                    
                     const checkReady = () => {
+                        checkCount++;
                         const images = iframe.contentDocument.querySelectorAll('img');
                         let allLoaded = true;
+                        
                         for (const img of images) {
                             if (!img.complete) {
                                 allLoaded = false;
                                 break;
                             }
                         }
+                        
                         if (allLoaded && iframe.contentDocument.readyState === 'complete') {
+                            resolve();
+                        } else if (checkCount > maxChecks) {
+                            addLog(`Warning: Some images may not have loaded for ${fileId}`, 'warning');
                             resolve();
                         } else {
                             setTimeout(checkReady, 100);
                         }
                     };
+                    
+                    iframe.onload = checkReady;
                     setTimeout(checkReady, 100);
                 });
                 
-                // Use improved html2canvas settings
-                const canvas = await html2canvas(iframe.contentDocument.body, {
-                    scale: 3, // Higher resolution for better quality
-                    useCORS: true,
-                    allowTaint: true,
-                    letterRendering: true,
-                    logging: false,
-                    imageTimeout: 0,
-                    backgroundColor: '#ffffff'
-                });
-                
-                // Create a PDF with proper dimensions for a letter page
+                // Implement better multi-page detection and rendering
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF({
                     orientation: 'portrait',
@@ -1162,48 +1528,62 @@
                     format: 'letter'
                 });
                 
-                // Calculate page dimensions
+                // Get page dimensions in points
                 const pageWidth = pdf.internal.pageSize.getWidth();
                 const pageHeight = pdf.internal.pageSize.getHeight();
                 
-                // Create a more intelligent paging system for multi-page documents
-                const contentHeight = canvas.height;
-                const contentWidth = canvas.width;
-                const scale = pageWidth / contentWidth;
-                const scaledHeight = contentHeight * scale;
+                // Improved approach: use multiple canvases for each page to avoid memory issues
+                // Find natural page breaks or calculate based on content height
+                const body = iframe.contentDocument.body;
+                const contentHeight = body.scrollHeight;
+                const contentWidth = body.scrollWidth;
                 
-                // If content is taller than a single page, split it across multiple pages
-                if (scaledHeight > pageHeight) {
-                    const totalPages = Math.ceil(scaledHeight / pageHeight);
-                    
-                    for (let pageNum = 0; pageNum < totalPages; pageNum++) {
-                        if (pageNum > 0) {
-                            pdf.addPage();
-                        }
-                        
-                        // Calculate source and destination dimensions for this page
-                        const sourceY = (pageHeight / scale) * pageNum;
-                        const sourceHeight = Math.min(pageHeight / scale, contentHeight - sourceY);
-                        
-                        pdf.addImage(
-                            canvas.toDataURL('image/jpeg', 1.0),
-                            'JPEG',
-                            0, 0,
-                            pageWidth, pageHeight * (contentHeight / sourceHeight),
-                            null,
-                            'FAST',
-                            0,
-                            -sourceY * scale // Vertical offset to show correct portion
-                        );
+                // Calculate scaling factor
+                const scale = Math.min(pageWidth / contentWidth, 1);
+                
+                // Approximate number of pages needed
+                const pagesNeeded = Math.ceil(contentHeight / (pageHeight / scale));
+                
+                addLog(`Rendering ${pagesNeeded} page(s) for ${fileId}...`, 'info');
+                
+                // Render each page individually
+                for (let pageNum = 0; pageNum < pagesNeeded; pageNum++) {
+                    if (pageNum > 0) {
+                        pdf.addPage();
                     }
-                } else {
-                    // For single page documents, center the content
+                    
+                    // Set the scroll position for this page segment
+                    const scrollTop = (pageHeight / scale) * pageNum;
+                    iframe.contentWindow.scrollTo(0, scrollTop);
+                    
+                    // Create a canvas for just this visible portion
+                    const canvas = await html2canvas(body, {
+                        scale: 2, // Higher resolution
+                        useCORS: true,
+                        allowTaint: true,
+                        letterRendering: true,
+                        logging: false,
+                        windowWidth: contentWidth,
+                        windowHeight: pageHeight / scale,
+                        x: 0,
+                        y: scrollTop,
+                        width: contentWidth,
+                        height: Math.min(pageHeight / scale, contentHeight - scrollTop),
+                        backgroundColor: '#ffffff'
+                    });
+                    
+                    // Add this canvas segment to the PDF
                     pdf.addImage(
-                        canvas.toDataURL('image/jpeg', 1.0),
+                        canvas.toDataURL('image/jpeg', 0.95),
                         'JPEG',
-                        0, (pageHeight - scaledHeight) / 2,
-                        pageWidth, scaledHeight
+                        0, 0,
+                        pageWidth, pageHeight,
+                        null,
+                        'FAST'
                     );
+                    
+                    // Free memory by removing the canvas reference
+                    canvas.remove();
                 }
                 
                 // Clean up
@@ -1211,15 +1591,17 @@
                 
                 // Return the PDF blob
                 const pdfBlob = pdf.output('blob');
-                addLog(`Enhanced PDF creation completed for ${fileId}`, 'success');
+                addLog(`PDF creation completed for ${fileId}`, 'success');
                 return pdfBlob;
                 
             } catch (error) {
-                console.error('Error in fallback PDF creation:', error);
-                addLog(`Error in fallback PDF creation: ${error.message}`, 'error');
+                console.error('Error in iframe PDF creation:', error);
+                addLog(`Error in iframe PDF creation: ${error.message}`, 'error');
                 throw error;
             }
         }
+
+        
 
 
         // Function to show status message
