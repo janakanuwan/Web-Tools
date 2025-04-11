@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text to Speech Converter</title>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: minmax(300px, 40%) 1fr;
+            }
+        }
+
+        .controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .text-section, .options-section, .openai-section, .audio-section {
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 1rem;
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        select, input[type="range"], input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .radio-options {
+            margin-bottom: 15px;
+        }
+
+        .radio-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .radio-container input {
+            margin-right: 8px;
+        }
+
+        .range-value {
+            display: inline-block;
+            min-width: 30px;
+            text-align: right;
+            margin-left: 10px;
+        }
+
+        .generate-button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+
+        .generate-button:hover {
+            background-color: #3b5a8c;
+        }
+
+        .generate-button:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+        }
+
+        .preview {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .audio-player {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .audio-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .audio-button {
+            flex: 1;
+            padding: 10px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.3s;
+        }
+
+        .audio-button:hover {
+            background-color: #3b5a8c;
+        }
+
+        .download-button {
+            background-color: #28a745;
+        }
+
+        .download-button:hover {
+            background-color: #218838;
+        }
+
+        .status-message {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .error-message {
+            color: var(--accent-color);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+
+        .api-key-container {
+            margin-top: 15px;
+        }
+
+        .api-key-container.hidden {
+            display: none;
+        }
+
+        .settings-row {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 15px;
+        }
+
+        @media (min-width: 576px) {
+            .settings-row {
+                flex-direction: row;
+                gap: 15px;
+            }
+            
+            .settings-row > div {
+                flex: 1;
+            }
+        }
+
+        #voiceInfo {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: -10px;
+            margin-bottom: 15px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(74, 111, 165, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Text to Speech Converter</h1>
+    <div class="container">
+        <div class="controls">
+            <div class="text-section">
+                <h2>Enter Text</h2>
+                <textarea id="textInput" placeholder="Type or paste your text here...">Hello world! This is a text to speech converter.</textarea>
+            </div>
+            <div class="options-section">
+                <h2>Speech Options</h2>
+                <div class="radio-options">
+                    <div class="radio-container">
+                        <input type="radio" id="browserSynthesis" name="speechMethod" value="browser" checked>
+                        <label for="browserSynthesis">Browser Speech Synthesis</label>
+                    </div>
+                    <div class="radio-container">
+                        <input type="radio" id="openaiApi" name="speechMethod" value="openai">
+                        <label for="openaiApi">OpenAI Text-to-Speech API</label>
+                    </div>
+                </div>
+
+                <!-- Browser Speech Options -->
+                <div id="browserOptions">
+                    <div class="settings-row">
+                        <div>
+                            <label for="voiceSelect">Voice:</label>
+                            <select id="voiceSelect"></select>
+                            <div id="voiceInfo"></div>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <label for="rateRange">Rate: <span id="rateValue" class="range-value">1</span></label>
+                            <input type="range" id="rateRange" min="0.5" max="2" value="1" step="0.1">
+                        </div>
+                        <div>
+                            <label for="pitchRange">Pitch: <span id="pitchValue" class="range-value">1</span></label>
+                            <input type="range" id="pitchRange" min="0.5" max="2" value="1" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OpenAI API Options -->
+                <div id="openaiOptions" class="api-key-container hidden">
+                    <label for="apiKey">OpenAI API Key:</label>
+                    <input type="password" id="apiKey" placeholder="Enter your OpenAI API key">
+                    <div class="settings-row">
+                        <div>
+                            <label for="openaiVoice">Voice:</label>
+                            <select id="openaiVoice">
+                                <option value="alloy">Alloy</option>
+                                <option value="echo">Echo</option>
+                                <option value="fable">Fable</option>
+                                <option value="onyx">Onyx</option>
+                                <option value="nova">Nova</option>
+                                <option value="shimmer">Shimmer</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="openaiModel">Model:</label>
+                            <select id="openaiModel">
+                                <option value="tts-1">TTS-1</option>
+                                <option value="tts-1-hd">TTS-1-HD</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="generateButton" class="generate-button">Generate Speech</button>
+                <div id="statusMessage" class="status-message"></div>
+            </div>
+        </div>
+        <div class="preview">
+            <h2>Audio Preview</h2>
+            <div id="audioContainer">
+                <p>Generated audio will appear here</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const textInput = document.getElementById('textInput');
+            const speechMethodRadios = document.getElementsByName('speechMethod');
+            const browserOptions = document.getElementById('browserOptions');
+            const openaiOptions = document.getElementById('openaiOptions');
+            const voiceSelect = document.getElementById('voiceSelect');
+            const voiceInfo = document.getElementById('voiceInfo');
+            const rateRange = document.getElementById('rateRange');
+            const pitchRange = document.getElementById('pitchRange');
+            const rateValue = document.getElementById('rateValue');
+            const pitchValue = document.getElementById('pitchValue');
+            const apiKey = document.getElementById('apiKey');
+            const openaiVoice = document.getElementById('openaiVoice');
+            const openaiModel = document.getElementById('openaiModel');
+            const generateButton = document.getElementById('generateButton');
+            const statusMessage = document.getElementById('statusMessage');
+            const audioContainer = document.getElementById('audioContainer');
+            
+            // Global variables
+            let voices = [];
+            let audioBlob = null;
+            let isGenerating = false;
+            
+            // Check localStorage for saved API key
+            if (localStorage.getItem('openai_api_key')) {
+                apiKey.value = localStorage.getItem('openai_api_key');
+            }
+            
+            // Initialize the page
+            initSpeechSynthesis();
+            setEventListeners();
+            
+            // Functions
+            function initSpeechSynthesis() {
+                // Check if browser supports speech synthesis
+                if ('speechSynthesis' in window) {
+                    // Chrome and other browsers load voices asynchronously
+                    speechSynthesis.onvoiceschanged = loadVoices;
+                    
+                    // Try to load voices immediately for Firefox and Safari
+                    loadVoices();
+                    
+                    // Some browsers don't fire onvoiceschanged or do it inconsistently
+                    // Add a fallback timer to check for voices
+                    let voiceCheckAttempts = 0;
+                    const voiceCheckInterval = setInterval(() => {
+                        if (voices.length > 0 || voiceCheckAttempts >= 10) {
+                            clearInterval(voiceCheckInterval);
+                        } else {
+                            loadVoices();
+                            voiceCheckAttempts++;
+                        }
+                    }, 500);
+                } else {
+                    statusMessage.textContent = 'Speech synthesis not supported in this browser';
+                    statusMessage.className = 'status-message error-message';
+                    // Don't disable the button completely as OpenAI option could still work
+                    document.getElementById('browserSynthesis').disabled = true;
+                    // Auto-select OpenAI option if browser speech not supported
+                    document.getElementById('openaiApi').checked = true;
+                    toggleSpeechMethod();
+                }
+            }
+            
+            function loadVoices() {
+                const availableVoices = speechSynthesis.getVoices();
+                
+                // Only update if new voices are available
+                if (availableVoices.length > 0 && availableVoices.length !== voices.length) {
+                    voices = availableVoices;
+                    
+                    // Clear the select
+                    voiceSelect.innerHTML = '';
+                    
+                    // Check if we have enough voices to create language groups
+                    if (voices.length > 10) {
+                        // Group voices by language
+                        const voicesByLanguage = {};
+                        voices.forEach(voice => {
+                            const langCode = voice.lang.split('-')[0];
+                            if (!voicesByLanguage[langCode]) {
+                                voicesByLanguage[langCode] = [];
+                            }
+                            voicesByLanguage[langCode].push(voice);
+                        });
+                        
+                        // Create option groups for each language
+                        Object.keys(voicesByLanguage).sort().forEach(langCode => {
+                            const optgroup = document.createElement('optgroup');
+                            try {
+                                // This might fail on some older browsers
+                                optgroup.label = new Intl.DisplayNames([navigator.language], {type: 'language'}).of(langCode);
+                            } catch (error) {
+                                // Fallback for browsers that don't support Intl.DisplayNames
+                                optgroup.label = langCode;
+                            }
+                            
+                            voicesByLanguage[langCode].sort((a, b) => {
+                                if (a.default) return -1;
+                                if (b.default) return 1;
+                                return a.name.localeCompare(b.name);
+                            }).forEach(voice => {
+                                const option = document.createElement('option');
+                                option.value = voice.name;
+                                option.textContent = `${voice.name} (${voice.lang})`;
+                                if (voice.default) {
+                                    option.selected = true;
+                                    option.textContent += ' - Default';
+                                }
+                                optgroup.appendChild(option);
+                            });
+                            
+                            voiceSelect.appendChild(optgroup);
+                        });
+                    } else {
+                        // Simple list for browsers with few voices
+                        voices.forEach(voice => {
+                            const option = document.createElement('option');
+                            option.value = voice.name;
+                            option.textContent = `${voice.name} (${voice.lang})`;
+                            if (voice.default) {
+                                option.selected = true;
+                            }
+                            voiceSelect.appendChild(option);
+                        });
+                    }
+                    
+                    // Find a good default voice if no default is set
+                    if (!voiceSelect.value && voices.length > 0) {
+                        // Try to find an English voice
+                        const englishVoice = voices.find(v => v.lang.startsWith('en-'));
+                        if (englishVoice) {
+                            voiceSelect.value = englishVoice.name;
+                        } else {
+                            // Just use the first voice
+                            voiceSelect.value = voices[0].name;
+                        }
+                    }
+                    
+                    voiceInfo.textContent = `${voices.length} voices available`;
+                }
+            }
+            
+            function setEventListeners() {
+                // Toggle between browser and OpenAI options
+                for (const radio of speechMethodRadios) {
+                    radio.addEventListener('change', toggleSpeechMethod);
+                }
+                
+                // Update range values
+                rateRange.addEventListener('input', () => {
+                    rateValue.textContent = rateRange.value;
+                });
+                
+                pitchRange.addEventListener('input', () => {
+                    pitchValue.textContent = pitchRange.value;
+                });
+                
+                // Save API key to localStorage when it changes
+                apiKey.addEventListener('change', () => {
+                    if (apiKey.value) {
+                        localStorage.setItem('openai_api_key', apiKey.value);
+                    }
+                });
+                
+                // Generate speech button
+                generateButton.addEventListener('click', generateSpeech);
+                
+                // Handle enter key in textarea
+                textInput.addEventListener('keydown', (e) => {
+                    // Check if Enter was pressed with Ctrl or Command key
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        generateSpeech();
+                    }
+                });
+            }
+            
+            function toggleSpeechMethod() {
+                const method = document.querySelector('input[name="speechMethod"]:checked').value;
+                
+                if (method === 'browser') {
+                    browserOptions.classList.remove('hidden');
+                    openaiOptions.classList.add('hidden');
+                } else {
+                    browserOptions.classList.add('hidden');
+                    openaiOptions.classList.remove('hidden');
+                }
+            }
+            
+            async function generateSpeech() {
+                // Prevent multiple generations
+                if (isGenerating) {
+                    return;
+                }
+                
+                const text = textInput.value.trim();
+                if (!text) {
+                    statusMessage.textContent = 'Please enter some text';
+                    statusMessage.className = 'status-message error-message';
+                    return;
+                }
+                
+                const method = document.querySelector('input[name="speechMethod"]:checked').value;
+                
+                // Clear previous audio
+                audioContainer.innerHTML = '<div class="loading"><div class="spinner"></div>Generating audio...</div>';
+                statusMessage.textContent = '';
+                audioBlob = null;
+                isGenerating = true;
+                generateButton.disabled = true;
+                
+                try {
+                    if (method === 'browser') {
+                        await generateBrowserSpeech(text);
+                    } else {
+                        await generateOpenAISpeech(text);
+                    }
+                } catch (error) {
+                    console.error('Error generating speech:', error);
+                    statusMessage.textContent = `Error: ${error.message}`;
+                    statusMessage.className = 'status-message error-message';
+                    audioContainer.innerHTML = '<p>Failed to generate audio</p>';
+                } finally {
+                    isGenerating = false;
+                    generateButton.disabled = false;
+                }
+            }
+            
+            function generateBrowserSpeech(text) {
+                return new Promise((resolve) => {
+                    // Cancel any ongoing speech
+                    if (speechSynthesis.speaking || speechSynthesis.pending) {
+                        speechSynthesis.cancel();
+                    }
+                    
+                    // Create utterance
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    
+                    // Set voice
+                    const selectedVoice = voiceSelect.value;
+                    const voice = voices.find(v => v.name === selectedVoice);
+                    if (voice) {
+                        utterance.voice = voice;
+                    }
+                    
+                    // Set other parameters
+                    utterance.rate = parseFloat(rateRange.value);
+                    utterance.pitch = parseFloat(pitchRange.value);
+                    
+                    // Since we can't reliably record the speech synthesis output in most browsers,
+                    // we'll create a player that can play the speech on demand
+                    createBrowserSpeechPlayer(utterance);
+                    resolve();
+                });
+            }
+            
+            function createBrowserSpeechPlayer(utterance) {
+                // Create controls container
+                const controlsDiv = document.createElement('div');
+                controlsDiv.className = 'audio-controls';
+                
+                // Create play button
+                const playButton = document.createElement('button');
+                playButton.className = 'audio-button';
+                playButton.textContent = 'Play Speech';
+                playButton.onclick = () => {
+                    // Cancel any ongoing speech
+                    if (speechSynthesis.speaking || speechSynthesis.pending) {
+                        speechSynthesis.cancel();
+                    }
+                    
+                    // Clone the utterance to prevent issues with reusing the same instance
+                    const clonedUtterance = new SpeechSynthesisUtterance(utterance.text);
+                    clonedUtterance.voice = utterance.voice;
+                    clonedUtterance.rate = utterance.rate;
+                    clonedUtterance.pitch = utterance.pitch;
+                    
+                    // Safari has an issue where speech can stop after 15 seconds
+                    // Create a workaround function to keep it going
+                    const resumeSpeech = () => {
+                        if (speechSynthesis.speaking) {
+                            speechSynthesis.pause();
+                            speechSynthesis.resume();
+                            setTimeout(resumeSpeech, 14000);
+                        }
+                    };
+                    
+                    // Start speech
+                    speechSynthesis.speak(clonedUtterance);
+                    
+                    // Start the resume loop for Safari
+                    if (/Apple/i.test(navigator.vendor)) {
+                        setTimeout(resumeSpeech, 14000);
+                    }
+                    
+                    // Handle the speech end event
+                    clonedUtterance.onend = () => {
+                        statusMessage.textContent = 'Speech playback completed';
+                    };
+                    
+                    // Handle speech errors
+                    clonedUtterance.onerror = (event) => {
+                        statusMessage.textContent = `Speech error: ${event.error}`;
+                        statusMessage.className = 'status-message error-message';
+                    };
+                    
+                    // Some mobile browsers have issues with onend not firing
+                    // Set a fallback timer based on text length
+                    const estimatedDuration = utterance.text.length * 80; // Roughly 80ms per character
+                    setTimeout(() => {
+                        if (speechSynthesis.speaking) {
+                            speechSynthesis.cancel();
+                            statusMessage.textContent = 'Speech playback completed (timeout)';
+                        }
+                    }, Math.min(estimatedDuration, 60000)); // Cap at 60 seconds
+                    
+                    statusMessage.textContent = 'Playing speech...';
+                    statusMessage.className = 'status-message';
+                };
+                
+                // Create stop button
+                const stopButton = document.createElement('button');
+                stopButton.className = 'audio-button';
+                stopButton.textContent = 'Stop';
+                stopButton.onclick = () => {
+                    speechSynthesis.cancel();
+                    statusMessage.textContent = 'Speech playback stopped';
+                };
+                
+                // Create download button for HTML player
+                const downloadButton = document.createElement('button');
+                downloadButton.className = 'audio-button download-button';
+                downloadButton.textContent = 'Download HTML Player';
+                downloadButton.onclick = () => {
+                    // Create a simple HTML file that will play the speech when opened
+                    const html = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Speech Player</title>
+                        <style>
+                            body {
+                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                                line-height: 1.6;
+                                color: #333;
+                                max-width: 800px;
+                                margin: 0 auto;
+                                padding: 20px;
+                            }
+                            h1 {
+                                color: #4a6fa5;
+                            }
+                            blockquote {
+                                background-color: #f8f9fa;
+                                border-left: 4px solid #4a6fa5;
+                                padding: 10px 20px;
+                                margin: 20px 0;
+                            }
+                            button {
+                                background-color: #4a6fa5;
+                                color: white;
+                                border: none;
+                                padding: 10px 20px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 16px;
+                                margin-right: 10px;
+                            }
+                            button:hover {
+                                background-color: #3b5a8c;
+                            }
+                            .controls {
+                                margin: 20px 0;
+                            }
+                            #status {
+                                font-style: italic;
+                                color: #666;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Speech Player</h1>
+                        <p>This page will use your browser's text-to-speech to generate audio for the following text:</p>
+                        <blockquote>${textInput.value.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>
+                        
+                        <div class="controls">
+                            <button id="playBtn">Play Audio</button>
+                            <button id="stopBtn">Stop Audio</button>
+                        </div>
+                        <div id="status"></div>
+                        
+                        <script>
+                            // Check if speech synthesis is supported
+                            if (!('speechSynthesis' in window)) {
+                                document.getElementById('status').textContent = 'Speech synthesis is not supported in your browser.';
+                                document.getElementById('playBtn').disabled = true;
+                                document.getElementById('stopBtn').disabled = true;
+                            }
+                            
+                            // Safari speech synthesis fix
+                            let speechUtterance = null;
+                            
+                            function resumeSpeech() {
+                                if (window.speechSynthesis.speaking) {
+                                    window.speechSynthesis.pause();
+                                    window.speechSynthesis.resume();
+                                    setTimeout(resumeSpeech, 14000);
+                                }
+                            }
+                            
+                            document.getElementById('playBtn').addEventListener('click', function() {
+                                const text = \`${textInput.value.replace(/`/g, '\\`')}\`;
+                                
+                                // Cancel any ongoing speech
+                                window.speechSynthesis.cancel();
+                                
+                                speechUtterance = new SpeechSynthesisUtterance(text);
+                                speechUtterance.rate = ${parseFloat(rateRange.value)};
+                                speechUtterance.pitch = ${parseFloat(pitchRange.value)};
+                                
+                                // Try to find a similar voice (this is not guaranteed to work across browsers)
+                                try {
+                                    const voices = window.speechSynthesis.getVoices();
+                                    const targetVoiceName = "${utterance.voice ? utterance.voice.name : ''}";
+                                    const targetVoiceLang = "${utterance.voice ? utterance.voice.lang : ''}";
+                                    
+                                    // Try to match by name first, then by language
+                                    let voice = voices.find(v => v.name === targetVoiceName);
+                                    if (!voice && targetVoiceLang) {
+                                        voice = voices.find(v => v.lang === targetVoiceLang);
+                                    }
+                                    
+                                    if (voice) {
+                                        speechUtterance.voice = voice;
+                                    }
+                                } catch (e) {
+                                    console.error('Error setting voice:', e);
+                                }
+                                
+                                document.getElementById('status').textContent = 'Playing audio...';
+                                speechUtterance.onend = function() {
+                                    document.getElementById('status').textContent = 'Playback completed';
+                                };
+                                
+                                speechUtterance.onerror = function(event) {
+                                    document.getElementById('status').textContent = 'Error: ' + (event.error || 'Unknown error');
+                                };
+                                
+                                // Start speaking
+                                window.speechSynthesis.speak(speechUtterance);
+                                
+                                // Fix for Safari
+                                if (/Apple/i.test(navigator.vendor)) {
+                                    setTimeout(resumeSpeech, 14000);
+                                }
+                            });
+                            
+                            document.getElementById('stopBtn').addEventListener('click', function() {
+                                window.speechSynthesis.cancel();
+                                document.getElementById('status').textContent = 'Playback stopped';
+                            });
+                            
+                            // Load voices (needed for Chrome)
+                            function loadVoices() {
+                                const voices = window.speechSynthesis.getVoices();
+                                if (voices.length > 0) {
+                                    document.getElementById('status').textContent = 'Ready to play';
+                                    return true;
+                                }
+                                return false;
+                            }
+                            
+                            if ('onvoiceschanged' in speechSynthesis) {
+                                speechSynthesis.onvoiceschanged = loadVoices;
+                            }
+                            
+                            // Try to load voices immediately
+                            if (!loadVoices()) {
+                                // For browsers that don't fire onvoiceschanged or do it inconsistently
+                                let voiceCheckAttempts = 0;
+                                const voiceCheckInterval = setInterval(() => {
+                                    if (loadVoices() || voiceCheckAttempts >= 10) {
+                                        clearInterval(voiceCheckInterval);
+                                    } else {
+                                        voiceCheckAttempts++;
+                                    }
+                                }, 500);
+                            }
+                        <\/script>
+                    </body>
+                    </html>`;
+                    
+                    const blob = new Blob([html], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'speech_player.html';
+                    a.click();
+                    
+                    // Cleanup
+                    setTimeout(() => URL.revokeObjectURL(url), 100);
+                    
+                    statusMessage.textContent = 'HTML player downloaded successfully';
+                };
+                
+                // Add controls to the container
+                controlsDiv.appendChild(playButton);
+                controlsDiv.appendChild(stopButton);
+                controlsDiv.appendChild(downloadButton);
+                
+                // Update the UI
+                audioContainer.innerHTML = '';
+                
+                // Create a visual representation of the audio
+                const visualElement = document.createElement('div');
+                visualElement.style.width = '100%';
+                visualElement.style.height = '60px';
+                visualElement.style.backgroundColor = '#e9f0f9';
+                visualElement.style.borderRadius = '4px';
+                visualElement.style.position = 'relative';
+                visualElement.style.overflow = 'hidden';
+                visualElement.style.marginBottom = '20px';
+                
+                // Create a simple waveform visualization
+                const waveformContainer = document.createElement('div');
+                waveformContainer.style.display = 'flex';
+                waveformContainer.style.alignItems = 'center';
+                waveformContainer.style.height = '100%';
+                waveformContainer.style.width = '100%';
+                waveformContainer.style.padding = '0 10px';
+                
+                // Generate some bars for visualization
+                const words = utterance.text.split(/\s+/).length;
+                const numBars = Math.min(Math.max(20, words), 50);
+                for (let i = 0; i < numBars; i++) {
+                    const bar = document.createElement('div');
+                    // Create a pseudo-random but deterministic height pattern
+                    const height = 20 + Math.abs(Math.sin(i * 0.5) * 30);
+                    bar.style.height = `${height}%`;
+                    bar.style.flex = '1';
+                    bar.style.backgroundColor = '#4a6fa5';
+                    bar.style.margin = '0 1px';
+                    bar.style.borderRadius = '1px';
+                    waveformContainer.appendChild(bar);
+                }
+                
+                visualElement.appendChild(waveformContainer);
+                audioContainer.appendChild(visualElement);
+                audioContainer.appendChild(controlsDiv);
+                
+                statusMessage.textContent = 'Speech ready. Click "Play Speech" to hear it.';
+                statusMessage.className = 'status-message';
+            }
+            
+            async function generateOpenAISpeech(text) {
+                const key = apiKey.value.trim();
+                if (!key) {
+                    throw new Error('Please enter your OpenAI API key');
+                }
+                
+                const voice = openaiVoice.value;
+                const model = openaiModel.value;
+                
+                try {
+                    statusMessage.innerHTML = '<div class="spinner"></div>Calling OpenAI API...';
+                    statusMessage.className = 'status-message';
+                    
+                    // Call OpenAI API
+                    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${key}`
+                        },
+                        body: JSON.stringify({
+                            model: model,
+                            voice: voice,
+                            input: text
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        let errorMessage = `API error: ${response.status}`;
+                        try {
+                            const errorData = await response.json();
+                            errorMessage = errorData?.error?.message || errorMessage;
+                        } catch (e) {
+                            // If we can't parse the error response, just use the status code
+                        }
+                        throw new Error(errorMessage);
+                    }
+                    
+                    // Get the audio blob
+                    audioBlob = await response.blob();
+                    createAudioPlayer(audioBlob);
+                    
+                } catch (error) {
+                    throw error;
+                }
+            }
+            
+            function createAudioPlayer(blob) {
+                const audioUrl = URL.createObjectURL(blob);
+                
+                // Create audio element
+                const audioElement = document.createElement('audio');
+                audioElement.src = audioUrl;
+                audioElement.controls = true;
+                audioElement.className = 'audio-player';
+                
+                // For iOS compatibility
+                audioElement.setAttribute('playsinline', '');
+                audioElement.setAttribute('webkit-playsinline', '');
+                
+                // Create custom controls for better mobile compatibility
+                const controlsDiv = document.createElement('div');
+                controlsDiv.className = 'audio-controls';
+                
+                // Create play button as fallback for mobile
+                const playButton = document.createElement('button');
+                playButton.className = 'audio-button';
+                playButton.textContent = 'Play Audio';
+                playButton.onclick = () => {
+                    // Handle play/pause
+                    if (audioElement.paused) {
+                        // Create a user interaction to allow autoplay on mobile
+                        const playPromise = audioElement.play();
+                        
+                        if (playPromise !== undefined) {
+                            playPromise.then(() => {
+                                playButton.textContent = 'Pause Audio';
+                                statusMessage.textContent = 'Playing audio...';
+                            }).catch(error => {
+                                // Autoplay was prevented
+                                console.error("Playback error:", error);
+                                statusMessage.textContent = 'Error playing audio. Try again.';
+                                statusMessage.className = 'status-message error-message';
+                            });
+                        }
+                    } else {
+                        audioElement.pause();
+                        playButton.textContent = 'Play Audio';
+                        statusMessage.textContent = 'Audio paused';
+                    }
+                };
+                
+                // Event listeners for audio element to update button state
+                audioElement.addEventListener('ended', () => {
+                    playButton.textContent = 'Play Audio';
+                    statusMessage.textContent = 'Audio playback completed';
+                });
+                
+                audioElement.addEventListener('play', () => {
+                    playButton.textContent = 'Pause Audio';
+                });
+                
+                audioElement.addEventListener('pause', () => {
+                    playButton.textContent = 'Play Audio';
+                });
+                
+                // Create download button
+                const downloadButton = document.createElement('button');
+                downloadButton.className = 'audio-button download-button';
+                downloadButton.textContent = 'Download MP3';
+                downloadButton.onclick = () => {
+                    const a = document.createElement('a');
+                    a.href = audioUrl;
+                    a.download = `speech_${Date.now()}.mp3`;
+                    a.click();
+                    
+                    statusMessage.textContent = 'Audio downloaded successfully';
+                };
+                
+                // Add controls to the container
+                controlsDiv.appendChild(playButton);
+                controlsDiv.appendChild(downloadButton);
+                
+                // Update the UI
+                audioContainer.innerHTML = '';
+                audioContainer.appendChild(audioElement);
+                audioContainer.appendChild(controlsDiv);
+                
+                statusMessage.textContent = 'Speech generated successfully';
+                statusMessage.className = 'status-message';
+            }
+        });
+    </script>
+</body>
+</html>
