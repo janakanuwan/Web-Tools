@@ -18,3 +18,35 @@ bin-release/
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important
 # information for Eclipse / Flash Builder.
+
+
+# System Files
+.DS_Store
+**.DS_Store
+**/*.DS_Store
+Thumbs.db
+/local.properties
+Database/*.db
+
+# IDEs and editors
+.idea
+.gradle
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+proguard/
+
+# IDE - VSCode
+.vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Log file
+*.log
+logs/

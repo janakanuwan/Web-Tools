@@ -33,29 +33,58 @@
             margin: 0 auto;
         }
         
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .home-menu .icon {
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+        }
+
         header {
             text-align: center;
             margin-bottom: 40px;
             padding: 20px 0;
             border-bottom: 1px solid #eee;
+            position: relative;
         }
-        
+
         h1 {
             color: var(--primary-color);
             margin-bottom: 10px;
         }
-        
+
         .subtitle {
             color: #666;
             font-size: 1.1rem;
         }
-        
+
         .tools-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 30px;
         }
-        
+
         .tool-card {
             background-color: var(--card-bg);
             border-radius: 8px;
@@ -63,19 +92,19 @@
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             overflow: hidden;
         }
-        
+
         .tool-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
-        
+
         .tool-card a {
             display: block;
             text-decoration: none;
             color: inherit;
             padding: 25px 20px;
         }
-        
+
         .tool-icon {
             display: flex;
             justify-content: center;
@@ -84,12 +113,12 @@
             font-size: 3rem;
             color: var(--primary-color);
         }
-        
+
         .tool-icon svg {
             width: 60px;
             height: 60px;
         }
-        
+
         .tool-name {
             font-size: 1.25rem;
             font-weight: 600;
@@ -97,18 +126,18 @@
             margin-bottom: 10px;
             color: var(--primary-color);
         }
-        
+
         .tool-description {
             color: #666;
             text-align: center;
             font-size: 0.95rem;
         }
-        
+
         .coming-soon {
             opacity: 0.6;
             position: relative;
         }
-        
+
         .coming-soon::after {
             content: 'Coming Soon';
             position: absolute;
@@ -121,7 +150,7 @@
             font-size: 0.75rem;
             font-weight: bold;
         }
-        
+
         footer {
             margin-top: 50px;
             text-align: center;
@@ -129,32 +158,41 @@
             color: #666;
             font-size: 0.9rem;
         }
-        
+
         @media (max-width: 768px) {
             .tools-grid {
                 grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
                 gap: 20px;
             }
-            
+
             .tool-icon {
                 font-size: 2.5rem;
             }
-            
+
             .tool-icon svg {
                 width: 50px;
                 height: 50px;
             }
+
+            .home-menu {
+                position: relative;
+                top: 0;
+                left: 0;
+                margin: 0 auto 20px;
+                width: fit-content;
+                justify-content: center;
+            }
         }
-        
+
         @media (max-width: 480px) {
             body {
                 padding: 15px;
             }
-            
+
             header {
                 margin-bottom: 30px;
             }
-            
+
             .tools-grid {
                 grid-template-columns: 1fr;
             }
@@ -163,18 +201,27 @@
 </head>
 <body>
     <div class="container">
+        <!-- Home Menu Link -->
+        <a href="https://nuwanjanaka.info" class="home-menu">
+            <span class="icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+            </span>
+            <span>Back to Home</span>
+        </a>
+
         <header>
             <h1>Tools Collection</h1>
             <p class="subtitle">Useful utilities to enhance your workflow</p>
-            <br> 
+            <br>
              <p class="subtitle">
                 <strong>Note:</strong> All tools are static web pages that <strong>run locally</strong> in your browser — <em>no data is sent to any server</em>. If preferred, you can also download them as HTML files and run them offline.
             </p>
             <br>
-            <p class="subtitle"><strong>Acknowledgement:</strong> Developing tools were inspired by <a href="https://runzecai.com/tools/" target="_blank" rel="noopener noreferrer">https://runzecai.com/tools/</a>!</p>
         </header>
-         
-        
+
         <div class="tools-grid">
             <!-- Excel File Search Tool -->
             <div class="tool-card">
@@ -208,7 +255,7 @@
                     <p class="tool-description">Generate personalized PDF recommendation letters from Word templates and Excel data</p>
                 </a>
             </div>
-            
+
             <!-- PDF Certificate Generator Tool -->
             <div class="tool-card">
                 <a href="./pdf_certificate/">
@@ -224,7 +271,7 @@
                     <p class="tool-description">Create PDF certificates based on PowerPoint templates and Excel data</p>
                 </a>
             </div>
-            
+
             <!-- Text to Speech Tool -->
             <div class="tool-card">
                 <a href="./text_to_speech/">
@@ -240,7 +287,7 @@
                     <p class="tool-description">Convert text to natural-sounding speech using browser APIs or OpenAI</p>
                 </a>
             </div>
-            
+
             <!-- Placeholder for future tools -->
             <div class="tool-card coming-soon">
                 <a href="javascript:void(0)">
@@ -256,19 +303,17 @@
                 </a>
             </div>
         </div>
-        
+
         <footer>
+            <p class="subtitle"><strong>Acknowledgement:</strong> Developing tools were inspired by <a href="https://runzecai.com/tools/" target="_blank" rel="noopener noreferrer">https://runzecai.com/tools/</a>!</p>
+            <br>
             <p>
-                [<script>document.write(new Date().getFullYear())</script>] 
-                Disclaimer: These tools are developed with the use of GenAI tools. Use them at your own risk — the developer assumes no responsibility for any data loss, errors, or outcomes resulting from their use.
+                [2025] Disclaimer: These tools are developed with the use of GenAI tools. Use them at your own risk — the developer assumes no responsibility for any data loss, errors, or outcomes resulting from their use.
             </p>
-            <p>
+            <p class="subtitle">
                 This project (<a href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">https://github.com/janakanuwan/Web-Tools</a>) is licensed under the <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer">MIT License</a>.
             </p>
         </footer>
-
     </div>
-    
-
 </body>
 </html>
