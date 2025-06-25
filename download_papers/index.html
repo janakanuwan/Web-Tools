@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Paper Downloader</title>
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 1024px) {
+            .container {
+                grid-template-columns: minmax(350px, 35%) 1fr;
+            }
+        }
+
+        .controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .custom-file-upload {
+            display: block;
+            width: 100%;
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+            border: none;
+        }
+
+        .custom-file-upload:hover {
+            background-color: #3b5a8c;
+        }
+
+        #csvInput {
+            display: none;
+        }
+
+        .button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .button-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .button-primary:hover:not(:disabled) {
+            background-color: #3b5a8c;
+        }
+
+        .button-secondary {
+            background-color: var(--light-gray);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .button-secondary:hover:not(:disabled) {
+            background-color: #e0e0e0;
+        }
+
+        .button-danger {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .button-danger:hover:not(:disabled) {
+            background-color: #e55555;
+        }
+
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .results {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .status-card {
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .status-pending {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status-downloaded {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-failed {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-processing {
+            background-color: #cce5ff;
+            border: 1px solid #99d6ff;
+        }
+
+        .status-resolving {
+            background-color: #e2e3e5;
+            border: 1px solid #d6d8db;
+        }
+
+        .papers-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .papers-table th,
+        .papers-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            word-wrap: break-word;
+        }
+
+        .papers-table th {
+            background-color: var(--secondary-color);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .papers-table tbody tr:hover {
+            background-color: var(--light-gray);
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .badge-pending {
+            background-color: var(--warning-color);
+            color: #333;
+        }
+
+        .badge-downloaded {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .badge-failed {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .badge-processing {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .badge-resolving {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .doi-cell {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .progress-container {
+            margin: 15px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: var(--light-gray);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary-color);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 5px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .log-container {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+
+        .log-info {
+            color: #007bff;
+        }
+
+        .log-success {
+            color: var(--success-color);
+        }
+
+        .log-error {
+            color: var(--accent-color);
+        }
+
+        .log-warning {
+            color: #ff8c00;
+        }
+
+        .table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        .ieee-doc-input {
+            margin-top: 10px;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            width: 200px;
+            font-size: 0.9rem;
+        }
+
+        .resolve-button {
+            padding: 6px 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-left: 5px;
+        }
+
+        .resolve-button:hover {
+            background-color: #3b5a8c;
+        }
+
+        /* New styles for remove button */
+        .remove-button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remove-button:hover {
+            background-color: #e55555;
+        }
+
+        .actions-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .export-section {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .resolution-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .url-display {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            margin: 10px 0;
+            word-break: break-all;
+            font-family: monospace;
+        }
+
+        @media (max-width: 1023px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 767px) {
+            .status-info {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .papers-table {
+                font-size: 0.9rem;
+            }
+            
+            .papers-table th,
+            .papers-table td {
+                padding: 8px;
+            }
+
+            .export-section {
+                flex-direction: column;
+            }
+
+            .modal-content {
+                width: 95%;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Research Paper Downloader</h1>
+    <p style="text-align: center; color: #555; margin-bottom: 20px;">
+        This tool opens research paper proxy URLs in new tabs but does not download them automatically. You can manually download them. You also need to enable pop-ups in your browser, as multiple tab openings may be blocked by default.
+    </p>
+    <div class="container">
+        <div class="controls">
+            <!-- CSV Upload Section -->
+            <div class="section">
+                <h2>CSV File Upload</h2>
+                <div class="form-group">
+                    <button id="downloadSampleCsv" class="button button-secondary">Download Sample CSV</button>
+                </div>
+                <div class="form-group">
+                    <label for="csvInput" class="custom-file-upload">
+                        Select CSV File (ID, DOI columns required)
+                    </label>
+                    <input type="file" id="csvInput" accept=".csv" />
+                </div>
+                <div id="csvStatus" class="status-message"></div>
+            </div>
+
+
+
+            <!-- Configuration Section -->
+            <div class="section">
+                <h2>Download Configuration</h2>
+                <div class="form-group">
+                    <label for="proxyDomain">Proxy Domain:</label>
+                    <input type="text" id="proxyDomain" class="input-field" 
+                           value="libproxy.xxx.yy" 
+                           placeholder="e.g., libproxy.xxx.yy">
+                </div>
+                <div class="form-group">
+                    <label for="waitTime">Wait Time Between Downloads (seconds):</label>
+                    <input type="number" id="waitTime" class="input-field" 
+                           value="5" min="1" max="60">
+                </div>
+                <div class="form-group">
+                    <label for="keyColumn">ID Column Name:</label>
+                    <input type="text" id="keyColumn" class="input-field" 
+                           value="ID" placeholder="ID">
+                </div>
+                <div class="form-group">
+                    <label for="doiColumn">DOI Column Name:</label>
+                    <input type="text" id="doiColumn" class="input-field" 
+                           value="DOI" placeholder="DOI">
+                </div>
+                <div class="form-group">
+                    <label for="ieeeDocColumn">IEEE Document Number Column (optional):</label>
+                    <input type="text" id="ieeeDocColumn" class="input-field" 
+                           placeholder="e.g., DocNumber, IEEEDocID">
+                    <small style="color: #666; font-size: 0.8rem;">
+                        If your CSV has IEEE document numbers, specify the column name
+                    </small>
+                </div>
+            </div>
+
+            <!-- Control Buttons -->
+            <div class="section">
+                <h2>Download Control</h2>
+                <button id="resolveIEEE" class="button button-secondary">
+                    Resolve IEEE URLs
+                </button>
+                <button id="startDownload" class="button button-primary" disabled>
+                    Start Download
+                </button>
+                <button id="pauseDownload" class="button button-secondary" disabled>
+                    Pause
+                </button>
+                <button id="stopDownload" class="button button-danger" disabled>
+                    Stop
+                </button>
+            </div>
+
+            <!-- Export Section -->
+            <div class="section">
+                <h2>Export Options</h2>
+                <div class="export-section">
+                    <button id="exportResults" class="button button-secondary" disabled>
+                        Export Full Results
+                    </button>
+                    <button id="exportTableData" class="button button-secondary" disabled>
+                        Export Table Data
+                    </button>
+                </div>
+            </div>
+
+            <!-- Download Log -->
+            <div class="section">
+                <h2>Download Log</h2>
+                <div id="logContainer" class="log-container">
+                    <div class="log-entry log-info">Ready to start downloading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="results">
+            <!-- Status Summary -->
+            <div class="status-info">
+                <div class="status-card status-pending">
+                    <div class="status-number" id="pendingCount">0</div>
+                    <div>Pending</div>
+                </div>
+                <div class="status-card status-resolving">
+                    <div class="status-number" id="resolvingCount">0</div>
+                    <div>Resolving</div>
+                </div>
+                <div class="status-card status-processing">
+                    <div class="status-number" id="processingCount">0</div>
+                    <div>Processing</div>
+                </div>
+                <div class="status-card status-downloaded">
+                    <div class="status-number" id="downloadedCount">0</div>
+                    <div>Opened</div>
+                </div>
+                <div class="status-card status-failed">
+                    <div class="status-number" id="failedCount">0</div>
+                    <div>Failed</div>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">0% completed</div>
+            </div>
+
+            <!-- Papers Table -->
+            <div class="table-container">
+                <table class="papers-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>ID</th>
+                            <th>DOI</th>
+                            <th>Publisher</th>
+                            <th>Status</th>
+                            <th>Download URL</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="papersTableBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 30px; color: #666;">
+                                Upload a CSV file to see papers list
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- IEEE Resolution Modal -->
+    <div id="ieeeModal" class="resolution-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>IEEE Document ID Resolution</h3>
+                <p id="modalPaperInfo"></p>
+            </div>
+            <div class="modal-body">
+                <p><strong>Step 1:</strong> The DOI URL will open in a new tab:</p>
+                <div class="url-display" id="modalDoiUrl"></div>
+                
+                <p><strong>Step 2:</strong> After the page loads and redirects, look for the IEEE document ID in the final URL.</p>
+                <p>The URL should look like: <code>https://ieeexplore.ieee.org/document/XXXXXXXX</code></p>
+                
+                <p><strong>Step 3:</strong> Enter the document ID (the number after '/document/') below:</p>
+                <input type="text" id="docNumberInput" class="input-field" placeholder="Enter document number (e.g., 9876543)" style="margin-top: 10px;">
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    If you can't find the document ID, click "Skip" to use search URL instead
+                </small>
+            </div>
+            <div class="modal-footer">
+                <button id="openDoiBtn" class="button button-primary">Open DOI URL</button>
+                <button id="confirmDocBtn" class="button button-primary">Confirm ID</button>
+                <button id="skipDocBtn" class="button button-secondary">Skip</button>
+                <button id="cancelResolution" class="button button-danger">Cancel All</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class PaperDownloader {
+            constructor() {
+                this.papers = [];
+                this.currentIndex = 0;
+                this.isDownloading = false;
+                this.isPaused = false;
+                this.isResolving = false;
+                this.downloadInterval = null;
+                this.currentResolutionIndex = 0;
+                this.ieeepapers = [];
+                
+                this.initializeElements();
+                this.attachEventListeners();
+                this.updateUI();
+            }
+
+            initializeElements() {
+                // File input
+                this.csvInput = document.getElementById('csvInput');
+                this.csvStatus = document.getElementById('csvStatus');
+                
+                // Configuration
+                this.proxyDomain = document.getElementById('proxyDomain');
+                this.waitTime = document.getElementById('waitTime');
+                this.keyColumn = document.getElementById('keyColumn');
+                this.doiColumn = document.getElementById('doiColumn');
+                this.ieeeDocColumn = document.getElementById('ieeeDocColumn');
+                
+                // Controls
+                this.resolveBtn = document.getElementById('resolveIEEE');
+                this.startBtn = document.getElementById('startDownload');
+                this.pauseBtn = document.getElementById('pauseDownload');
+                this.stopBtn = document.getElementById('stopDownload');
+                this.exportBtn = document.getElementById('exportResults');
+                this.exportTableBtn = document.getElementById('exportTableData');
+                
+                // Status displays
+                this.pendingCount = document.getElementById('pendingCount');
+                this.resolvingCount = document.getElementById('resolvingCount');
+                this.processingCount = document.getElementById('processingCount');
+                this.downloadedCount = document.getElementById('downloadedCount');
+                this.failedCount = document.getElementById('failedCount');
+                
+                // Progress
+                this.progressFill = document.getElementById('progressFill');
+                this.progressText = document.getElementById('progressText');
+                
+                // Table and log
+                this.papersTableBody = document.getElementById('papersTableBody');
+                this.logContainer = document.getElementById('logContainer');
+
+                // Modal elements
+                this.ieeeModal = document.getElementById('ieeeModal');
+                this.modalPaperInfo = document.getElementById('modalPaperInfo');
+                this.modalDoiUrl = document.getElementById('modalDoiUrl');
+                this.docNumberInput = document.getElementById('docNumberInput');
+                this.openDoiBtn = document.getElementById('openDoiBtn');
+                this.confirmDocBtn = document.getElementById('confirmDocBtn');
+                this.skipDocBtn = document.getElementById('skipDocBtn');
+                this.cancelResolution = document.getElementById('cancelResolution');
+            }
+
+            attachEventListeners() {
+                document.getElementById('downloadSampleCsv').addEventListener('click', () => {
+                    const sampleCsv = `"ID","DOI"
+                "Paper1","10.1145/3675094.3678382"
+                "Paper2","10.1109/ISMAR-Adjunct60411.2023.00036"
+                "Paper3","10.1145/3675094.3678989"`;
+
+                    const blob = new Blob([sampleCsv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'sample_papers.csv';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                });
+
+                this.csvInput.addEventListener('change', (e) => this.handleCSVUpload(e));
+                this.resolveBtn.addEventListener('click', () => this.resolveIEEEUrls());
+                this.startBtn.addEventListener('click', () => this.startDownload());
+                this.pauseBtn.addEventListener('click', () => this.pauseDownload());
+                this.stopBtn.addEventListener('click', () => this.stopDownload());
+                this.exportBtn.addEventListener('click', () => this.exportResults());
+                this.exportTableBtn.addEventListener('click', () => this.exportTableData());
+
+                // auto-update download URLs on proxy change
+                this.proxyDomain.addEventListener('input', () => {
+                    this.papers.forEach(paper => {
+                        paper.downloadUrl = this.generateProxyURL(paper.doi, paper.publisher, paper.ieeeDocNumber);
+                    });
+                    this.updateTable();
+                });
+
+                // Modal event listeners
+                this.openDoiBtn.addEventListener('click', () => this.openDoiUrl());
+                this.confirmDocBtn.addEventListener('click', () => this.confirmDocNumber());
+                this.skipDocBtn.addEventListener('click', () => this.skipDocNumber());
+                this.cancelResolution.addEventListener('click', () => this.cancelIEEEResolution());
+
+                // Close modal on outside click
+                this.ieeeModal.addEventListener('click', (e) => {
+                    if (e.target === this.ieeeModal) {
+                        this.cancelIEEEResolution();
+                    }
+                });
+
+                // Enter key support in doc number input
+                this.docNumberInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.confirmDocNumber();
+                    }
+                });
+            }
+
+            handleCSVUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                this.csvStatus.textContent = 'Processing CSV file...';
+                this.csvStatus.className = 'status-message';
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const csvData = e.target.result;
+                        this.parseCSV(csvData);
+                    } catch (error) {
+                        this.csvStatus.textContent = `Error reading CSV: ${error.message}`;
+                        this.csvStatus.className = 'status-message error-message';
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            parseCSV(csvData) {
+                const lines = csvData.split('\n').filter(line => line.trim());
+                if (lines.length < 2) {
+                    throw new Error('CSV file must have at least a header and one data row');
+                }
+
+                const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+                const keyColIndex = headers.findIndex(h => h.toLowerCase() === this.keyColumn.value.toLowerCase());
+                const doiColIndex = headers.findIndex(h => h.toLowerCase() === this.doiColumn.value.toLowerCase());
+                
+                // Optional IEEE document number column
+                let ieeeDocColIndex = -1;
+                if (this.ieeeDocColumn.value.trim()) {
+                    ieeeDocColIndex = headers.findIndex(h => h.toLowerCase() === this.ieeeDocColumn.value.toLowerCase());
+                }
+
+                if (keyColIndex === -1 || doiColIndex === -1) {
+                    throw new Error(`Required columns '${this.keyColumn.value}' and '${this.doiColumn.value}' not found in CSV`);
+                }
+
+                this.papers = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const cells = this.parseCSVLine(lines[i]);
+                    if (cells.length > Math.max(keyColIndex, doiColIndex)) {
+                        const key = cells[keyColIndex]?.trim().replace(/"/g, '');
+                        const doi = cells[doiColIndex]?.trim().replace(/"/g, '');
+                        const ieeeDocNumber = ieeeDocColIndex >= 0 ? cells[ieeeDocColIndex]?.trim().replace(/"/g, '') : null;
+                        
+                        if (key && doi) {
+                            const publisher = this.detectPublisher(doi);
+                            const paper = {
+                                index: i,
+                                key: key,
+                                doi: doi,
+                                publisher: publisher,
+                                status: 'pending',
+                                downloadUrl: '',
+                                ieeeDocNumber: ieeeDocNumber,
+                                error: null,
+                                uniqueId: Date.now() + Math.random() // Add unique ID for tracking
+                            };
+                            
+                            // Generate initial URL
+                            paper.downloadUrl = this.generateProxyURL(doi, publisher, ieeeDocNumber);
+                            this.papers.push(paper);
+                        }
+                    }
+                }
+
+                this.csvStatus.textContent = `Loaded ${this.papers.length} papers successfully`;
+                this.csvStatus.className = 'status-message';
+                
+                this.currentIndex = 0;
+                this.updateTable();
+                this.updateUI();
+                this.addLog(`Loaded ${this.papers.length} papers from CSV`, 'success');
+                
+                // Check if IEEE papers need URL resolution
+                const ieeeCount = this.papers.filter(p => p.publisher === 'ieee' && !p.ieeeDocNumber).length;
+                if (ieeeCount > 0) {
+                    this.addLog(`Found ${ieeeCount} IEEE papers that need URL resolution`, 'warning');
+                }
+            }
+
+            parseCSVLine(line) {
+                const result = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(current);
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                result.push(current);
+                return result;
+            }
+
+            detectPublisher(doi) {
+                if (doi.startsWith('10.1145')) return 'acm';
+                if (doi.startsWith('10.1109')) return 'ieee';
+                if (doi.startsWith('10.1007')) return 'springer';
+                return 'unknown';
+            }
+
+            generateProxyURL(doi, publisher, ieeeDocNumber = null) {
+                const proxyDomain = this.proxyDomain.value;
+                
+                switch (publisher) {
+                    case 'acm':
+                        return `https://dl-acm-org.${proxyDomain}/doi/${doi}`;
+                    case 'ieee':
+                        if (ieeeDocNumber) {
+                            return `https://ieeexplore-ieee-org.${proxyDomain}/document/${ieeeDocNumber}`;
+                        } else {
+                            // Fallback to search URL - user will need to resolve manually
+                            return `https://ieeexplore-ieee-org.${proxyDomain}/search/searchresult.jsp?queryText=${encodeURIComponent(doi)}`;
+                        }
+                    case 'springer':
+                        return `https://link-springer-com.${proxyDomain}/chapter/${doi}`;
+                    default:
+                        return `https://doi-org.${proxyDomain}/${doi}`;
+                }
+            }
+
+            // New method to remove a paper from the list
+            removePaper(uniqueId) {
+                const paperIndex = this.papers.findIndex(p => p.uniqueId === uniqueId);
+                if (paperIndex === -1) return;
+
+                const paper = this.papers[paperIndex];
+                
+                // Don't allow removal if currently processing
+                if (paper.status === 'processing') {
+                    this.addLog(`Cannot remove ${paper.key} - currently processing`, 'warning');
+                    return;
+                }
+
+                this.papers.splice(paperIndex, 1);
+                this.addLog(`Removed paper: ${paper.key}`, 'info');
+                
+                this.updateTable();
+                this.updateUI();
+            }
+
+            async resolveIEEEUrls() {
+                this.ieeepapers = this.papers.filter(p => p.publisher === 'ieee' && !p.ieeeDocNumber);
+                if (this.ieeepapers.length === 0) {
+                    this.addLog('No IEEE papers need URL resolution', 'info');
+                    return;
+                }
+
+                this.isResolving = true;
+                this.resolveBtn.disabled = true;
+                this.currentResolutionIndex = 0;
+                
+                this.addLog(`Starting resolution of ${this.ieeepapers.length} IEEE papers...`, 'info');
+                this.resolveNextIEEEPaper();
+            }
+
+            resolveNextIEEEPaper() {
+                if (!this.isResolving || this.currentResolutionIndex >= this.ieeepapers.length) {
+                    // Resolution completed
+                    this.isResolving = false;
+                    this.resolveBtn.disabled = false;
+                    this.addLog('IEEE URL resolution completed', 'success');
+                    this.updateUI();
+                    return;
+                }
+
+                const paper = this.ieeepapers[this.currentResolutionIndex];
+                paper.status = 'resolving';
+                this.updateTable();
+                this.updateUI();
+
+                this.addLog(`Resolving IEEE URL for: ${paper.key}`, 'info');
+
+                // Show modal for this paper
+                this.showIEEEResolutionModal(paper);
+            }
+
+            showIEEEResolutionModal(paper) {
+                this.currentPaper = paper;
+                this.modalPaperInfo.textContent = `Paper: ${paper.key} (${paper.doi})`;
+                this.modalDoiUrl.textContent = `https://doi.org/${paper.doi}`;
+                this.docNumberInput.value = '';
+                this.ieeeModal.style.display = 'flex';
+                
+                // Focus on the input
+                setTimeout(() => this.docNumberInput.focus(), 100);
+            }
+
+            openDoiUrl() {
+                const doiUrl = `https://doi.org/${this.currentPaper.doi}`;
+                window.open(doiUrl, '_blank', 'width=1000,height=700');
+                this.addLog(`Opened DOI URL for ${this.currentPaper.key}`, 'info');
+            }
+
+            confirmDocNumber() {
+                const docNumber = this.docNumberInput.value.trim();
+                
+                if (!docNumber) {
+                    alert('Please enter a document number or click Skip');
+                    return;
+                }
+
+                if (!/^\d+$/.test(docNumber)) {
+                    alert('Document number should contain only digits');
+                    return;
+                }
+
+                // Update the paper
+                this.currentPaper.ieeeDocNumber = docNumber;
+                this.currentPaper.downloadUrl = this.generateProxyURL(
+                    this.currentPaper.doi, 
+                    this.currentPaper.publisher, 
+                    docNumber
+                );
+                this.currentPaper.status = 'pending';
+                
+                this.addLog(`✓ Resolved ${this.currentPaper.key}: Document ${docNumber}`, 'success');
+                
+                this.closeModal();
+                this.proceedToNextResolution();
+            }
+
+            skipDocNumber() {
+                // Keep the search URL
+                this.currentPaper.status = 'pending';
+                this.addLog(`⚠ Skipped resolution for ${this.currentPaper.key} - will use search URL`, 'warning');
+                
+                this.closeModal();
+                this.proceedToNextResolution();
+            }
+
+            cancelIEEEResolution() {
+                // Reset all resolving papers back to pending
+                this.ieeepapers.forEach(paper => {
+                    if (paper.status === 'resolving') {
+                        paper.status = 'pending';
+                    }
+                });
+
+                this.isResolving = false;
+                this.resolveBtn.disabled = false;
+                this.addLog('IEEE URL resolution cancelled', 'warning');
+                
+                this.closeModal();
+                this.updateTable();
+                this.updateUI();
+            }
+
+            closeModal() {
+                this.ieeeModal.style.display = 'none';
+                this.currentPaper = null;
+            }
+
+            proceedToNextResolution() {
+                this.currentResolutionIndex++;
+                this.updateTable();
+                this.updateUI();
+                
+                // Small delay before processing next paper
+                setTimeout(() => {
+                    this.resolveNextIEEEPaper();
+                }, 500);
+            }
+
+            updateTable() {
+                if (this.papers.length === 0) {
+                    this.papersTableBody.innerHTML = `
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 30px; color: #666;">
+                                Upload a CSV file to see papers list
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                this.papersTableBody.innerHTML = this.papers.map(paper => `
+                    <tr>
+                        <td>${paper.index}</td>
+                        <td>${paper.key}</td>
+                        <td class="doi-cell" title="${paper.doi}">${paper.doi}</td>
+                        <td>${paper.publisher.toUpperCase()}</td>
+                        <td>
+                            <span class="status-badge badge-${paper.status}">
+                                ${paper.status}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="${paper.downloadUrl}" target="_blank" 
+                               style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem;">
+                                ${paper.downloadUrl.includes('/search/') ? 'Search' : 'Open Link'}
+                            </a>
+                        </td>
+                        <td>
+                            <div class="actions-cell">
+                                ${paper.publisher === 'ieee' && !paper.ieeeDocNumber ? 
+                                    `<input type="text" class="ieee-doc-input" placeholder="Doc number" 
+                                           onchange="paperDownloader.updateIEEEDoc(${paper.index}, this.value)">` : 
+                                    (paper.ieeeDocNumber ? `<span style="font-size: 0.8rem;">Doc: ${paper.ieeeDocNumber}</span>` : '-')
+                                }
+                                <button class="remove-button" onclick="paperDownloader.removePaper(${paper.uniqueId})" 
+                                        title="Remove this paper"
+                                        ${paper.status === 'processing' ? 'disabled' : ''}>
+                                    ×
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            updateIEEEDoc(paperIndex, docNumber) {
+                const paper = this.papers.find(p => p.index === paperIndex);
+                if (paper && docNumber.trim() && /^\d+$/.test(docNumber.trim())) {
+                    paper.ieeeDocNumber = docNumber.trim();
+                    paper.downloadUrl = this.generateProxyURL(paper.doi, paper.publisher, docNumber.trim());
+                    this.updateTable();
+                    this.addLog(`Updated IEEE doc number for ${paper.key}: ${docNumber.trim()}`, 'success');
+                }
+            }
+
+            updateStatusCounts() {
+                const counts = {
+                    pending: 0,
+                    resolving: 0,
+                    processing: 0,
+                    downloaded: 0,
+                    failed: 0
+                };
+
+                this.papers.forEach(paper => {
+                    counts[paper.status]++;
+                });
+
+                this.pendingCount.textContent = counts.pending;
+                this.resolvingCount.textContent = counts.resolving;
+                this.processingCount.textContent = counts.processing;
+                this.downloadedCount.textContent = counts.downloaded;
+                this.failedCount.textContent = counts.failed;
+
+                // Update progress
+                const total = this.papers.length;
+                const completed = counts.downloaded + counts.failed;
+                const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+                
+                this.progressFill.style.width = `${percentage}%`;
+                this.progressText.textContent = `${percentage}% completed (${completed}/${total})`;
+            }
+
+            updateUI() {
+                const hasFiles = this.papers.length > 0;
+                const canStart = hasFiles && !this.isDownloading && !this.isResolving;
+                const canPause = this.isDownloading && !this.isPaused;
+                const canStop = this.isDownloading;
+                const canExport = hasFiles;
+                const canResolve = hasFiles && !this.isResolving && !this.isDownloading;
+
+                this.startBtn.disabled = !canStart;
+                this.pauseBtn.disabled = !canPause;
+                this.stopBtn.disabled = !canStop;
+                this.exportBtn.disabled = !canExport;
+                this.exportTableBtn.disabled = !canExport;
+                this.resolveBtn.disabled = !canResolve;
+
+                this.updateStatusCounts();
+            }
+
+            async startDownload() {
+                if (this.isDownloading && this.isPaused) {
+                    // Resume
+                    this.isPaused = false;
+                    this.pauseBtn.textContent = 'Pause';
+                    this.addLog('Download resumed', 'info');
+                } else {
+                    // Start new download
+                    this.isDownloading = true;
+                    this.isPaused = false;
+                    this.currentIndex = this.papers.findIndex(p => p.status === 'pending');
+                    if (this.currentIndex === -1) this.currentIndex = 0;
+                    
+                    this.addLog('Starting download process...', 'info');
+                }
+
+                this.updateUI();
+                this.processNextPaper();
+            }
+
+            pauseDownload() {
+                this.isPaused = true;
+                this.pauseBtn.textContent = 'Resume';
+                this.addLog('Download paused', 'warning');
+                this.updateUI();
+            }
+
+            stopDownload() {
+                this.isDownloading = false;
+                this.isPaused = false;
+                this.pauseBtn.textContent = 'Pause';
+                
+                // Reset any processing status back to pending
+                this.papers.forEach(paper => {
+                    if (paper.status === 'processing') {
+                        paper.status = 'pending';
+                    }
+                });
+
+                this.addLog('Download stopped', 'warning');
+                this.updateTable();
+                this.updateUI();
+            }
+
+            async processNextPaper() {
+                if (!this.isDownloading || this.isPaused) return;
+
+                // Find next pending paper
+                const nextPaper = this.papers.find(p => p.status === 'pending');
+                if (!nextPaper) {
+                    this.isDownloading = false;
+                    this.addLog('All papers processed!', 'success');
+                    this.updateUI();
+                    return;
+                }
+
+                // Mark as processing
+                nextPaper.status = 'processing';
+                this.updateTable();
+                this.updateUI();
+
+                this.addLog(`Processing: ${nextPaper.key} (${nextPaper.doi})`, 'info');
+
+                try {
+                    // Simulate the download process
+                    await this.downloadPaper(nextPaper);
+                    nextPaper.status = 'opened';
+                    this.addLog(`✓ Opened: ${nextPaper.key}`, 'success');
+                } catch (error) {
+                    nextPaper.status = 'failed';
+                    nextPaper.error = error.message;
+                    this.addLog(`✗ Failed: ${nextPaper.key} - ${error.message}`, 'error');
+                }
+
+                this.updateTable();
+                this.updateUI();
+
+                // Wait before processing next paper
+                if (this.isDownloading && !this.isPaused) {
+                    const waitTime = parseInt(this.waitTime.value) * 1000;
+                    setTimeout(() => this.processNextPaper(), waitTime);
+                }
+            }
+
+            async downloadPaper(paper) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        // Open the proxy URL in a new tab
+                        const newWindow = window.open(paper.downloadUrl, '_blank');
+                        
+                        if (!newWindow) {
+                            throw new Error('Popup blocked - please allow popups for this site');
+                        }
+
+                        // For IEEE search URLs, warn user
+                        if (paper.downloadUrl.includes('/search/')) {
+                            this.addLog(`⚠ ${paper.key}: Opened search page - manually find and download PDF`, 'warning');
+                        }
+
+                        // Simulate download time
+                        setTimeout(() => {
+                            resolve();
+                        }, 2000 + Math.random() * 3000); // 2-5 seconds
+
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            }
+
+            addLog(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry log-${type}`;
+                logEntry.textContent = `[${timestamp}] ${message}`;
+                
+                this.logContainer.appendChild(logEntry);
+                this.logContainer.scrollTop = this.logContainer.scrollHeight;
+
+                // Keep only last 100 log entries
+                while (this.logContainer.children.length > 100) {
+                    this.logContainer.removeChild(this.logContainer.firstChild);
+                }
+            }
+
+            // Original export method - exports all data including errors and IEEE doc numbers
+            exportResults() {
+                if (this.papers.length === 0) return;
+
+                const csvContent = [
+                    ['ID', 'DOI', 'Publisher', 'Status', 'Download URL', 'IEEE Doc Number', 'Error'],
+                    ...this.papers.map(paper => [
+                        paper.key,
+                        paper.doi,
+                        paper.publisher,
+                        paper.status,
+                        paper.downloadUrl,
+                        paper.ieeeDocNumber || '',
+                        paper.error || ''
+                    ])
+                ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const filename = `download_results_${new Date().toISOString().split('T')[0]}.csv`;
+                
+                this.downloadCSV(blob, filename);
+                this.addLog(`Full results exported to ${filename}`, 'success');
+            }
+
+            // New method to export table data (ID, DOI, Status, Link)
+            exportTableData() {
+                if (this.papers.length === 0) return;
+
+                const csvContent = [
+                    ['ID', 'DOI', 'Status', 'Link'],
+                    ...this.papers.map(paper => [
+                        paper.key,
+                        paper.doi,
+                        paper.status,
+                        paper.downloadUrl
+                    ])
+                ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const filename = `table_data_${new Date().toISOString().split('T')[0]}.csv`;
+                
+                this.downloadCSV(blob, filename);
+                this.addLog(`Table data exported to ${filename}`, 'success');
+            }
+
+            // Helper method to download CSV files
+            downloadCSV(blob, filename) {
+                if (window.saveAs) {
+                    saveAs(blob, filename);
+                } else {
+                    // Fallback for browsers without FileSaver.js
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+            }
+        }
+
+        // Initialize the application when the page loads
+        let paperDownloader;
+        document.addEventListener('DOMContentLoaded', () => {
+            paperDownloader = new PaperDownloader();
+        });
+    </script>
+</body>
+</html>
