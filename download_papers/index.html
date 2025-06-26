@@ -53,6 +53,34 @@
             }
         }
 
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .home-menu .icon {
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+        }
+
         .controls {
             background-color: white;
             padding: 20px;
@@ -467,6 +495,17 @@
     </style>
 </head>
 <body>
+    <!-- Home Menu Link -->
+    <a href="../" class="home-menu">
+        <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        </span>
+        <span>Back to Home</span>
+    </a>
+
     <h1>Research Paper Downloader</h1>
     <p style="text-align: center; color: #555; margin-bottom: 20px;">
         This tool opens research paper proxy URLs in new tabs but does not download them automatically. You can manually download them. You also need to enable pop-ups in your browser, as multiple tab openings may be blocked by default.
