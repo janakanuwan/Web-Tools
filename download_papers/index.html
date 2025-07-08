@@ -756,9 +756,9 @@
             attachEventListeners() {
                 document.getElementById('downloadSampleCsv').addEventListener('click', () => {
                     const sampleCsv = `"ID","DOI"
-                "Paper1","10.1145/3675094.3678382"
-                "Paper2","10.1109/ISMAR-Adjunct60411.2023.00036"
-                "Paper3","10.1145/3675094.3678989"`;
+"Paper1","10.1145/3675094.3678382"
+"Paper2","10.1109/ISMAR-Adjunct60411.2023.00036"
+"Paper3","10.1145/3675094.3678989"`;
 
                     const blob = new Blob([sampleCsv], { type: 'text/csv;charset=utf-8;' });
                     const url = URL.createObjectURL(blob);
