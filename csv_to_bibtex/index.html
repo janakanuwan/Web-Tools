@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV to BibTeX Converter</title>
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png"
+          type="image/png">
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .home-menu .icon {
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .custom-file-upload {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        .custom-file-upload:hover {
+            background-color: #3b5a8c;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            border: none;
+            color: white;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #3b5a8c;
+        }
+
+        pre {
+            background-color: var(--light-gray);
+            padding: 20px;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+<a class="home-menu" href="../">
+    <span class="icon">
+        <svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+        </svg>
+    </span>
+    Home
+</a>
+
+<h1>CSV to BibTeX Converter</h1>
+
+<div class="controls">
+    <label for="csvInput" class="custom-file-upload">Upload CSV File</label>
+    <input type="file" id="csvInput" accept=".csv">
+    <button onclick="downloadBibtex()">Download .bib File</button>
+    <pre id="output"></pre>
+</div>
+
+<script>
+    function sanitizeBibtexKey(title, year) {
+        return title.toLowerCase().replace(/\\W+/g, '').slice(0, 30) + year;
+    }
+
+    function escapeBibtex(value) {
+        return value.replace(/{/g, '\\{').replace(/}/g, '\\}').replace(/&/g, '\\&');
+    }
+
+    function formatPages(row) {
+        const pages = row['Pages'] || '';
+        const start = row['Start Page'] || pages.split('-')[0];
+        const end = row['End Page'] || (pages.includes('-') ? pages.split('-')[1] : null);
+        if (start && end) return `${start}--${end}`;
+        if (start) return start;
+        return '';
+    }
+
+    function mapRowToBibtex(row) {
+        let entryType = 'article';
+        const itemType = (row['Item Type'] || '').toLowerCase().trim();
+        if (itemType === 'book') entryType = 'book';
+        else if (['conference paper', 'conferencepaper'].includes(itemType)) entryType = 'inproceedings';
+        else if (row['Conference Name']) entryType = 'inproceedings';
+
+        const title = row['Title'] || 'Untitled';
+        const year = row['Publication Year'] || '????';
+        const key = row['Key'] || sanitizeBibtexKey(title, year);
+
+        const fields = {
+            author: row['Author'],
+            title: title,
+            booktitle: row['Conference Name'],
+            journal: row['Publication Title'],
+            year: year,
+            volume: row['Volume'],
+            number: row['Issue'],
+            pages: formatPages(row),
+            doi: row['DOI'],
+            url: row['Url'],
+            abstract: row['Abstract Note'],
+            publisher: row['Publisher'],
+            isbn: row['ISBN'],
+            issn: row['ISSN'],
+            keywords: row['Manual Tags'],  // or row['Automatic Tags']?
+            series: row['Series'],
+            note: row['Extra'],
+        };
+
+        // Remove empty and sanitize
+        const cleaned = Object.entries(fields)
+            .filter(([k, v]) => v && v.trim())
+            .map(([k, v]) => `  ${k} = {${escapeBibtex(v)}},`)
+            .join('\n');
+
+        return `@${entryType}{${key},\n${cleaned}\n}`;
+    }
+
+
+    let bibtexEntries = [];
+    let originalFileName = "references.bib";
+
+    document.getElementById('csvInput').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        originalFileName = file.name.replace(/\.csv$/i, '') + '.bib';
+
+        const reader = new FileReader();
+        reader.onload = function (event) {
+            const text = event.target.result;
+            const rows = parseCSV(text);
+            bibtexEntries = rows.map(mapRowToBibtex);
+            document.getElementById('output').textContent = bibtexEntries.join('\n\n');
+        };
+        reader.readAsText(file);
+    });
+
+    function parseCSV(text) {
+        const rows = [];
+        const lines = text.trim().split('\n');
+
+        const headers = parseCSVRow(lines[0]);
+
+        for (let i = 1; i < lines.length; i++) {
+            const rowValues = parseCSVRow(lines[i]);
+            const row = {};
+            headers.forEach((header, idx) => {
+                row[header.trim()] = rowValues[idx] ? rowValues[idx].trim() : '';
+            });
+            rows.push(row);
+        }
+        return rows;
+    }
+
+    function parseCSVRow(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+
+            if (char === '"' && inQuotes && nextChar === '"') {
+                current += '"';
+                i++; // skip next quote
+            } else if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                result.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        result.push(current);
+        return result;
+    }
+
+
+    function downloadBibtex() {
+        if (!bibtexEntries.length) {
+            alert("No BibTeX data to export!");
+            return;
+        }
+        const blob = new Blob([bibtexEntries.join('\n\n')], {type: 'text/plain'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = originalFileName || 'references.bib';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>
