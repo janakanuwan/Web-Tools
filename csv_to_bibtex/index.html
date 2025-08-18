@@ -159,31 +159,40 @@
 
     function mapRowToBibtex(row) {
         let entryType = 'article';
+        // Use "Item Type" if available
         const itemType = (row['Item Type'] || '').toLowerCase().trim();
-        if (itemType === 'book') entryType = 'book';
-        else if (['conference paper', 'conferencepaper'].includes(itemType)) entryType = 'inproceedings';
-        else if (row['Conference Name']) entryType = 'inproceedings';
+        if (itemType === 'book') {
+            entryType = 'book';
+        } else if (['conference paper', 'conferencepaper'].includes(itemType)) {
+            entryType = 'inproceedings';
+        }
+        // Fallbacks if "Item Type" is not usable
+        else if (row['Meeting Name'] && row['Meeting Name'].trim()) {
+            entryType = 'inproceedings';
+        } else if (row['Publication Title'] && row['Publication Title'].trim()) {
+            entryType = 'article';
+        }
 
-        const title = row['Title'] || 'Untitled';
-        const year = row['Publication Year'] || '????';
+        const title = row['Document Title'] || row['Title'] || 'Untitled';
+        const year = row['Publication Year'] || row['Year'] || '????';
         const key = row['Key'] || sanitizeBibtexKey(title, year);
 
         const fields = {
-            author: row['Author'],
+            author: row['Authors'] || row['Author'],
             title: title,
-            booktitle: row['Conference Name'],
             journal: row['Publication Title'],
+            booktitle: row['Conference Name'] || row['Meeting Name'],
             year: year,
             volume: row['Volume'],
             number: row['Issue'],
             pages: formatPages(row),
             doi: row['DOI'],
-            url: row['Url'],
-            abstract: row['Abstract Note'],
+            url: row['PDF Link'] || row['Url'] || row['URL'],
+            abstract: row['Abstract'] || row['Abstract Note'],
             publisher: row['Publisher'],
-            isbn: row['ISBN'],
+            isbn: row['ISBNs'] || row['ISBN'],
             issn: row['ISSN'],
-            keywords: row['Manual Tags'],  // or row['Automatic Tags']?
+            keywords: row['Author Keywords'] || row['Manual Tags'],
             series: row['Series'],
             note: row['Extra'],
         };
