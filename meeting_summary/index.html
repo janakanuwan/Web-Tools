@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meeting Summarizer</title>
+    <link rel="icon" href="https://www.gstatic.com/images/branding/product/1x/gemini_48dp.png" type="image/png">
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+            --recording-color: #c0392b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        h2 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+
+
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .home-menu .icon {
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .column {
+            background-color: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.95rem;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input[type="password"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+        
+        button, .button {
+            padding: 12px;
+            border: none;
+            color: white;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .button-primary { background-color: var(--primary-color); }
+        .button-primary:hover:not(:disabled) { background-color: #3b5a8c; transform: translateY(-2px); }
+        
+        .button-secondary { background-color: #6c757d; }
+        .button-secondary:hover:not(:disabled) { background-color: #5a6268; transform: translateY(-2px); }
+
+        .button-success { background-color: var(--accent-color); }
+        .button-success:hover:not(:disabled) { background-color: #27ae60; transform: translateY(-2px); }
+        
+        .button-danger { background-color: var(--danger-color); }
+        .button-danger:hover:not(:disabled) { background-color: #c0392b; transform: translateY(-2px); }
+        
+        .button-recording { background-color: var(--recording-color); }
+        .button-recording:hover:not(:disabled) { background-color: #e74c3c; }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        #summaryOutput {
+            background-color: var(--light-gray);
+            padding: 20px;
+            border-radius: 6px;
+            min-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .summary-content h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+        .summary-content ul {
+            list-style-type: disc;
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        @media (max-width: 900px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<a class="home-menu" href="../">
+    <span class="icon">
+        <svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+        </svg>
+    </span>
+    Home
+</a>
+
+<h1>AI Meeting Summarizer</h1>
+
+<div class="main-container">
+    <!-- Left Column -->
+    <div class="column">
+        <div>
+            <h2>1. Setup & Transcript</h2>
+            <label for="apiKey">Gemini API Key</label>
+            <input type="password" id="apiKey" placeholder="Enter your API key">
+            <small style="font-size: 0.8rem; color: #666; margin-top: 4px; display: block;">Stored locally in your browser.</small>
+        </div>
+         <div>
+            <label for="modelSelect">Select Model</label>
+            <select id="modelSelect">
+                <!-- Options populated dynamically -->
+            </select>
+        </div>
+        <div>
+             <input type="file" id="fileInput" accept="audio/*,video/*" style="display: none;">
+             <div class="button-group">
+                 <button id="transcribeMicButton" class="button button-secondary" style="width: 50%;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M8 8a3 3 0 0 0-3 3v.5a.5.5 0 0 1-1 0V11a4 4 0 0 1 8 0v.5a.5.5 0 0 1-1 0V11a3 3 0 0 0-3-3z"/></svg>
+                    Transcribe from Mic
+                 </button>
+                 <button id="sampleTranscriptButton" class="button button-secondary" style="width: 50%;">Use Sample Transcript</button>
+             </div>
+             <small id="micStatus" style="font-size: 0.8rem; color: #666; margin-top: 8px; display: block; text-align: center;"></small>
+        </div>
+        <div>
+            <label for="transcript">Transcript Text</label>
+            <textarea id="transcript" placeholder="Your transcript will appear here. You can also paste your own."></textarea>
+        </div>
+    </div>
+    <!-- Right Column -->
+    <div class="column">
+        <div>
+            <h2>2. Summarization Prompt</h2>
+            <label for="promptTemplate">Prompt Template</label>
+            <textarea id="promptTemplate" rows="6"></textarea>
+            <button id="saveTemplateButton" class="button-secondary" style="width: auto; padding: 8px 15px; margin-top: 10px;">Save Template</button>
+        </div>
+        <div class="button-group">
+            <button id="summarizeButton" class="button-success" style="flex:2;">Summarize</button>
+            <button id="clearAllButton" class="button-danger" style="flex:1;">Clear All</button>
+        </div>
+        <div>
+            <h2>3. Generated Summary</h2>
+            <div id="summaryOutput">
+                 <div id="messageArea" style="display: flex; align-items: center; justify-content: center; color: #666; height: 100%;">Your generated summary will appear here.</div>
+            </div>
+            <button id="downloadButton" class="button-primary" style="width: 100%; margin-top:10px; display:none;">Download Summary</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // --- CONFIGURATION ---
+    const API_CONFIG = {
+        apiUrl: (model, apiKey) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        apiListModelsUrl: (apiKey) => `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+    };
+
+    const DEFAULT_PROMPT_TEMPLATE = `You are an expert meeting summarizer. Based on the following transcript, create a concise and structured summary. Your output must be in Markdown format and include sections for 'Key Points', 'Action Items', and a 'Timestamped Overview'.`;
+
+    const SAMPLE_TRANSCRIPT = `[00:00:15] Alex: Okay, team, let's kick off the Q3 project review for 'Project Nova'. First up, Sarah, can you give us an update on the design phase?
+[00:00:25] Sarah: Thanks, Alex. We've finalized the wireframes and user flow diagrams. The UI mockups are about 80% complete. We're on track to deliver them by end of next week. I'll need feedback from the marketing team by next Wednesday to finalize the color palette.
+[00:00:45] Ben: I can get you that feedback. I'll schedule a quick sync with my team for tomorrow morning.
+[00:01:00] Alex: Perfect. Ben, while we have you, what's the status on the market analysis report?
+[00:01:10] Ben: The initial data collection is done. I'm currently analyzing the competitor landscape. I've identified two major competitors we need to watch closely. The full report should be on your desk by Monday.
+[00:01:30] Alex: Great. Let's make sure that report is shared with the product development team as well. Okay, that's all for today. Good work, everyone.`;
+
+    // --- DOM ELEMENT SELECTORS ---
+    const ui = {
+        apiKeyInput: document.getElementById('apiKey'),
+        modelSelect: document.getElementById('modelSelect'),
+        transcribeMicButton: document.getElementById('transcribeMicButton'),
+        sampleTranscriptButton: document.getElementById('sampleTranscriptButton'),
+        transcriptArea: document.getElementById('transcript'),
+        promptTemplateArea: document.getElementById('promptTemplate'),
+        saveTemplateButton: document.getElementById('saveTemplateButton'),
+        summarizeButton: document.getElementById('summarizeButton'),
+        clearAllButton: document.getElementById('clearAllButton'),
+        downloadButton: document.getElementById('downloadButton'),
+        summaryOutput: document.getElementById('summaryOutput'),
+        micStatus: document.getElementById('micStatus'),
+    };
+    
+    // --- LOCAL TRANSCRIPTION SETUP ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = SpeechRecognition ? new SpeechRecognition() : null;
+    let isTranscribing = false;
+
+    // --- MODULES (Storage, UI Manager, LLM, App) ---
+    const storage = {
+        get: (key) => localStorage.getItem(key),
+        set: (key, value) => localStorage.setItem(key, value)
+    };
+
+    const uiManager = {
+        showLoading(message) {
+            ui.summaryOutput.innerHTML = `<div style="text-align:center; color: #666;">${message}</div>`;
+            ui.summarizeButton.disabled = true;
+        },
+        hideLoading() {
+            ui.summarizeButton.disabled = false;
+        },
+        displayMessage(type, text) {
+            this.hideLoading();
+            ui.summaryOutput.innerHTML = `<div style="color: ${type === 'error' ? 'var(--danger-color)' : '#666'}; padding: 10px;">${text}</div>`;
+            ui.downloadButton.style.display = 'none';
+        },
+        displaySummary(htmlContent) {
+            this.hideLoading();
+            ui.summaryOutput.innerHTML = `<div class="summary-content">${htmlContent}</div>`;
+            ui.downloadButton.style.display = 'block';
+        },
+        clearAll() {
+            ui.transcriptArea.value = '';
+            this.displayMessage('info', 'Your generated summary will appear here.');
+        },
+        updateMicButton(isRecording) {
+            if (isRecording) {
+                ui.transcribeMicButton.classList.add('button-recording');
+                ui.transcribeMicButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg>
+                    Stop Transcribing`;
+                ui.micStatus.textContent = 'Listening...';
+            } else {
+                ui.transcribeMicButton.classList.remove('button-recording');
+                ui.transcribeMicButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M8 8a3 3 0 0 0-3 3v.5a.5.5 0 0 1-1 0V11a4 4 0 0 1 8 0v.5a.5.5 0 0 1-1 0V11a3 3 0 0 0-3-3z"/></svg>
+                    Transcribe from Mic`;
+                ui.micStatus.textContent = '';
+            }
+        }
+    };
+
+    const llm = {
+        async getAvailableModels(apiKey) {
+            const url = API_CONFIG.apiListModelsUrl(apiKey);
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Failed to fetch models. Check API key.');
+            }
+            const data = await response.json();
+            return data.models
+                .filter(model => model.supportedGenerationMethods.includes('generateContent'))
+                .map(model => model.name.replace('models/', ''));
+        },
+        async generateSummary(transcript, prompt, apiKey, model) {
+            const url = API_CONFIG.apiUrl(model, apiKey);
+            const payload = {
+                systemInstruction: { parts: [{ text: prompt }] },
+                contents: [{ parts: [{ text: transcript }] }],
+            };
+            
+            let response;
+            let delay = 1000;
+            for (let i = 0; i < 3; i++) {
+                try {
+                    response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) break;
+                    if (response.status === 429) {
+                        await new Promise(res => setTimeout(res, delay));
+                        delay *= 2;
+                        continue;
+                    }
+                    const errorBody = await response.json();
+                    throw new Error(`API Error: ${response.status} - ${errorBody.error?.message || 'Unknown error'}`);
+                } catch(e) {
+                     if (i === 2) throw e;
+                }
+            }
+
+            const result = await response.json();
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!text) throw new Error('Invalid response structure from API.');
+            return text;
+        }
+    };
+
+    const app = {
+        init() {
+            ui.apiKeyInput.value = storage.get('geminiApiKey') || '';
+            ui.promptTemplateArea.value = storage.get('promptTemplate') || DEFAULT_PROMPT_TEMPLATE;
+            
+            ui.apiKeyInput.addEventListener('change', () => {
+                storage.set('geminiApiKey', ui.apiKeyInput.value);
+                this.populateModels();
+            });
+            ui.modelSelect.addEventListener('change', () => storage.set('geminiModel', ui.modelSelect.value));
+            ui.sampleTranscriptButton.addEventListener('click', this.useSampleTranscript.bind(this));
+            ui.saveTemplateButton.addEventListener('click', this.saveTemplate.bind(this));
+            ui.summarizeButton.addEventListener('click', this.summarize.bind(this));
+            ui.clearAllButton.addEventListener('click', uiManager.clearAll.bind(uiManager));
+            ui.downloadButton.addEventListener('click', this.downloadSummary.bind(this));
+
+            this.initTranscription();
+            this.populateModels();
+        },
+        async populateModels() {
+            const apiKey = storage.get('geminiApiKey');
+            if (!apiKey) {
+                ui.modelSelect.innerHTML = '<option value="">Enter API Key to load models</option>';
+                ui.modelSelect.disabled = true;
+                return;
+            }
+
+            ui.modelSelect.disabled = true;
+            ui.modelSelect.innerHTML = '<option>Loading models...</option>';
+
+            try {
+                const models = await llm.getAvailableModels(apiKey);
+                if (models.length === 0) throw new Error('No compatible models found for this API key.');
+                
+                ui.modelSelect.innerHTML = ''; // Clear loading message
+                const savedModel = storage.get('geminiModel');
+
+                models.forEach(modelName => {
+                    const option = document.createElement('option');
+                    option.value = modelName;
+                    option.textContent = modelName.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+                    ui.modelSelect.appendChild(option);
+                });
+
+                if (savedModel && models.includes(savedModel)) {
+                    ui.modelSelect.value = savedModel;
+                } else if (models.includes('gemini-1.5-flash-latest')) {
+                    ui.modelSelect.value = 'gemini-1.5-flash-latest';
+                } else {
+                    ui.modelSelect.value = models[0];
+                }
+                storage.set('geminiModel', ui.modelSelect.value);
+
+            } catch (error) {
+                console.error(error);
+                ui.modelSelect.innerHTML = '<option value="gemini-1.5-flash-latest">Gemini 1.5 Flash (Default)</option>';
+                ui.micStatus.textContent = `Could not fetch models: ${error.message}`;
+            } finally {
+                ui.modelSelect.disabled = false;
+            }
+        },
+        initTranscription() {
+            if (!recognition) {
+                ui.transcribeMicButton.disabled = true;
+                ui.micStatus.textContent = 'Speech recognition not supported in this browser.';
+                return;
+            }
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            let final_transcript = '';
+
+            recognition.onresult = (event) => {
+                let interim_transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final_transcript += event.results[i][0].transcript;
+                    } else {
+                        interim_transcript += event.results[i][0].transcript;
+                    }
+                }
+                ui.transcriptArea.value = final_transcript + interim_transcript;
+            };
+
+            recognition.onend = () => {
+                if (isTranscribing) { 
+                    recognition.start();
+                } else {
+                     uiManager.updateMicButton(false);
+                }
+            };
+            
+            recognition.onerror = (event) => {
+                ui.micStatus.textContent = 'Error during transcription: ' + event.error;
+                isTranscribing = false;
+                uiManager.updateMicButton(false);
+            };
+
+            ui.transcribeMicButton.addEventListener('click', () => {
+                if (isTranscribing) {
+                    recognition.stop();
+                    isTranscribing = false;
+                } else {
+                    final_transcript = ui.transcriptArea.value ? ui.transcriptArea.value + '\n' : '';
+                    recognition.start();
+                    isTranscribing = true;
+                }
+                uiManager.updateMicButton(isTranscribing);
+            });
+        },
+        useSampleTranscript() {
+            ui.transcriptArea.value = SAMPLE_TRANSCRIPT;
+            uiManager.displayMessage('info', 'Sample transcript loaded.');
+        },
+        saveTemplate() {
+            storage.set('promptTemplate', ui.promptTemplateArea.value);
+            uiManager.displayMessage('info', 'Prompt template saved!');
+        },
+        async summarize() {
+            const apiKey = storage.get('geminiApiKey');
+            const model = storage.get('geminiModel');
+            const transcript = ui.transcriptArea.value.trim();
+            const prompt = ui.promptTemplateArea.value.trim();
+            if (!apiKey || !transcript || !model) {
+                uiManager.displayMessage('error', 'API Key, a selected model, and a transcript are required.');
+                return;
+            }
+            uiManager.showLoading('Generating summary...');
+            try {
+                const summaryText = await llm.generateSummary(transcript, prompt, apiKey, model);
+                const htmlSummary = summaryText
+                    .replace(/## (.*)/g, '<h2>$1</h2>')
+                    .replace(/\* (.*)/g, '<li>$1</li>')
+                    .replace(/(\r\n|\n|\r){2,}/g, '<br><br>')
+                    .replace(/(\r\n|\n|\r)/g, '<br>')
+                    .replace(/<br><li>/g, '<li>')
+                    .replace(/<\/li><br>/g, '</li>');
+                uiManager.displaySummary(htmlSummary);
+            } catch (error) {
+                uiManager.displayMessage('error', `Failed to generate summary: ${error.message}`);
+            }
+        },
+        downloadSummary() {
+            const summaryContainer = ui.summaryOutput.querySelector('.summary-content');
+            if (!summaryContainer) return;
+            const summaryHtml = summaryContainer.innerHTML;
+            const summaryText = summaryHtml
+                .replace(/<h2>(.*?)<\/h2>/g, '\n## $1\n')
+                .replace(/<ul>/g, '').replace(/<\/ul>/g, '')
+                .replace(/<li>(.*?)<\/li>/g, '\n- $1')
+                .replace(/<br\s*\/?>/g, '\n').trim();
+            const blob = new Blob([summaryText], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'meeting-summary.md';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    };
+
+    app.init();
+</script>
+</body>
+</html>
+
