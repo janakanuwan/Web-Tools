@@ -434,8 +434,8 @@
 
                 if (savedModel && models.includes(savedModel)) {
                     ui.modelSelect.value = savedModel;
-                } else if (models.includes('gemini-1.5-flash-latest')) {
-                    ui.modelSelect.value = 'gemini-1.5-flash-latest';
+                } else if (models.includes('gemini-2.5-flash-latest')) {
+                    ui.modelSelect.value = 'gemini-2.5-flash-latest';
                 } else {
                     ui.modelSelect.value = models[0];
                 }
@@ -443,7 +443,7 @@
 
             } catch (error) {
                 console.error(error);
-                ui.modelSelect.innerHTML = '<option value="gemini-1.5-flash-latest">Gemini 1.5 Flash (Default)</option>';
+                ui.modelSelect.innerHTML = '<option value="gemini-2.5-flash-latest">Gemini 2.5 Flash (Default)</option>';
                 ui.micStatus.textContent = `Could not fetch models: ${error.message}`;
             } finally {
                 ui.modelSelect.disabled = false;
