@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Meeting Summarizer</title>
-    <link rel="icon" href="https://www.gstatic.com/images/branding/product/1x/gemini_48dp.png" type="image/png">
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
     <style>
         :root {
             --primary-color: #4a6fa5;
@@ -434,8 +434,8 @@
 
                 if (savedModel && models.includes(savedModel)) {
                     ui.modelSelect.value = savedModel;
-                } else if (models.includes('gemini-2.5-flash-latest')) {
-                    ui.modelSelect.value = 'gemini-2.5-flash-latest';
+                } else if (models.includes('gemini-2.5-flash')) {
+                    ui.modelSelect.value = 'gemini-2.5-flash';
                 } else {
                     ui.modelSelect.value = models[0];
                 }
@@ -443,7 +443,7 @@
 
             } catch (error) {
                 console.error(error);
-                ui.modelSelect.innerHTML = '<option value="gemini-2.5-flash-latest">Gemini 2.5 Flash (Default)</option>';
+                ui.modelSelect.innerHTML = '<option value="gemini-2.5-flash">Gemini 2.5 Flash (Default)</option>';
                 ui.micStatus.textContent = `Could not fetch models: ${error.message}`;
             } finally {
                 ui.modelSelect.disabled = false;
