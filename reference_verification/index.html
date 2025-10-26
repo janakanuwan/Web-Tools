@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reference Verification Tool</title>
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        h2 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .home-menu .icon {
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .column {
+            background-color: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .api-settings-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.95rem;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input[type="password"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 150px;
+        }
+
+        button, .button {
+            padding: 12px;
+            border: none;
+            color: white;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .button-primary { background-color: var(--primary-color); }
+        .button-primary:hover:not(:disabled) { background-color: #3b5a8c; transform: translateY(-2px); }
+
+        .button-secondary { background-color: #6c757d; }
+        .button-secondary:hover:not(:disabled) { background-color: #5a6268; transform: translateY(-2px); }
+
+        .button-success { background-color: var(--accent-color); }
+        .button-success:hover:not(:disabled) { background-color: #27ae60; transform: translateY(-2px); }
+
+        .button-danger { background-color: var(--danger-color); }
+        .button-danger:hover:not(:disabled) { background-color: #c0392b; transform: translateY(-2px); }
+
+        .results-container {
+            background-color: var(--light-gray);
+            padding: 20px;
+            border-radius: 6px;
+            min-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--secondary-color);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .status-verified {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .status-error {
+            color: var(--danger-color);
+            font-weight: 600;
+        }
+
+        .status-warning {
+            color: #f39c12;
+            font-weight: 600;
+        }
+
+        .link-button {
+            color: var(--primary-color);
+            text-decoration: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .link-button:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .feedback-input {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .checkbox-cell {
+            text-align: center;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .status-message {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .progress-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 30px;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .extraction-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+
+        .badge-local {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .badge-llm {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+
+        @media (max-width: 768px) {
+            .api-settings-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 0.85rem;
+            }
+
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<a class="home-menu" href="../">
+    <span class="icon">
+        <svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+        </svg>
+    </span>
+    Home
+</a>
+
+<h1>📚 Reference Verification Tool</h1>
+
+<div class="main-container">
+    <!-- API Settings -->
+    <div class="column">
+        <h2>API Settings (Optional)</h2>
+        <div class="api-settings-grid">
+            <div>
+                <label for="apiKey">Gemini API Key (for enhanced extraction)</label>
+                <input type="password" id="apiKey" placeholder="Enter your Gemini API key">
+                <small class="status-message">Stored locally in your browser. Used as fallback for difficult references.</small>
+            </div>
+
+            <div>
+                <label for="modelSelect">Model</label>
+                <select id="modelSelect" disabled>
+                    <option value="">Enter API Key to load models</option>
+                </select>
+                <small id="modelStatus" class="status-message"></small>
+            </div>
+        </div>
+    </div>
+
+    <!-- References Input -->
+    <div class="column">
+        <h2>Paste References</h2>
+        <label for="referencesInput">Enter your references (one per line or separated by blank lines)</label>
+        <textarea id="referencesInput" placeholder="Example:
+Smith, J., & Johnson, A. (2023). Understanding Machine Learning. Journal of AI Research, 45(2), 123-145. https://doi.org/10.1234/example.2023
+
+Brown, K. (2022). Data Science Fundamentals. Academic Press. http://example.com/paper"></textarea>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar" id="progressBar">0%</div>
+        </div>
+
+        <button id="processButton" class="button-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
+            </svg>
+            Process References
+        </button>
+    </div>
+
+    <!-- Verification Results -->
+    <div class="column">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin-bottom: 0;">Verification Results</h2>
+            <button id="exportButton" class="button-secondary" style="padding: 8px 15px; display: none;">
+                Export Selected (CSV)
+            </button>
+        </div>
+
+        <div id="resultsContainer" class="results-container">
+            <div style="text-align: center; color: #666; padding: 40px 20px;">
+                Your verification results will appear here after processing.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Storage utilities
+const storage = {
+    get: (key) => localStorage.getItem(key),
+    set: (key, value) => localStorage.setItem(key, value)
+};
+
+// DOM elements
+const ui = {
+    apiKeyInput: document.getElementById('apiKey'),
+    modelSelect: document.getElementById('modelSelect'),
+    modelStatus: document.getElementById('modelStatus'),
+    referencesInput: document.getElementById('referencesInput'),
+    processButton: document.getElementById('processButton'),
+    resultsContainer: document.getElementById('resultsContainer'),
+    exportButton: document.getElementById('exportButton'),
+    progressContainer: document.getElementById('progressContainer'),
+    progressBar: document.getElementById('progressBar')
+};
+
+// API configuration
+const API_CONFIG = {
+    apiListModelsUrl: (apiKey) => `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+    apiGenerateUrl: (apiKey, model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+};
+
+// Initialize
+ui.apiKeyInput.value = storage.get('geminiApiKey') || '';
+const savedModel = storage.get('geminiModel') || '';
+
+// Update progress bar
+function updateProgress(current, total) {
+    const percentage = Math.round((current / total) * 100);
+    ui.progressBar.style.width = percentage + '%';
+    ui.progressBar.textContent = `Processing ${current}/${total} (${percentage}%)`;
+}
+
+// Show/hide progress bar
+function showProgress() {
+    ui.progressContainer.style.display = 'block';
+}
+
+function hideProgress() {
+    ui.progressContainer.style.display = 'none';
+    ui.progressBar.style.width = '0%';
+    ui.progressBar.textContent = '0%';
+}
+
+// Fetch available models
+async function fetchAvailableModels(apiKey) {
+    if (!apiKey) {
+        ui.modelSelect.innerHTML = '<option value="">Enter API Key to load models</option>';
+        ui.modelSelect.disabled = true;
+        ui.modelStatus.textContent = '';
+        return;
+    }
+
+    ui.modelSelect.disabled = true;
+    ui.modelSelect.innerHTML = '<option>Loading models...</option>';
+    ui.modelStatus.textContent = 'Fetching available models...';
+
+    try {
+        const response = await fetch(API_CONFIG.apiListModelsUrl(apiKey));
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch models. Check API key.');
+        }
+
+        const data = await response.json();
+        const models = data.models
+            .filter(model => model.supportedGenerationMethods &&
+                           model.supportedGenerationMethods.includes('generateContent'))
+            .map(model => model.name.replace('models/', ''));
+
+        if (models.length === 0) {
+            throw new Error('No compatible models found for this API key.');
+        }
+
+        ui.modelSelect.innerHTML = '';
+        models.forEach(modelName => {
+            const option = document.createElement('option');
+            option.value = modelName;
+            option.textContent = modelName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            ui.modelSelect.appendChild(option);
+        });
+
+        // Select saved model or default
+        if (savedModel && models.includes(savedModel)) {
+            ui.modelSelect.value = savedModel;
+        } else if (models.includes('gemini-2.0-flash-exp')) {
+            ui.modelSelect.value = 'gemini-2.0-flash-exp';
+        } else if (models.includes('gemini-1.5-flash')) {
+            ui.modelSelect.value = 'gemini-1.5-flash';
+        } else {
+            ui.modelSelect.value = models[0];
+        }
+
+        storage.set('geminiModel', ui.modelSelect.value);
+        ui.modelStatus.textContent = `${models.length} models available`;
+        ui.modelSelect.disabled = false;
+
+    } catch (error) {
+        console.error(error);
+        ui.modelSelect.innerHTML = '<option value="">Error loading models</option>';
+        ui.modelStatus.textContent = `Error: ${error.message}`;
+        ui.modelSelect.disabled = true;
+    }
+}
+
+// Load models on init if API key exists
+if (ui.apiKeyInput.value) {
+    fetchAvailableModels(ui.apiKeyInput.value);
+}
+
+// Save API key and fetch models on change
+ui.apiKeyInput.addEventListener('change', () => {
+    const apiKey = ui.apiKeyInput.value.trim();
+    storage.set('geminiApiKey', apiKey);
+    fetchAvailableModels(apiKey);
+});
+
+// Save model selection
+ui.modelSelect.addEventListener('change', () => {
+    storage.set('geminiModel', ui.modelSelect.value);
+});
+
+// LLM extraction function
+async function extractWithLLM(reference) {
+    const apiKey = storage.get('geminiApiKey');
+    const model = storage.get('geminiModel');
+
+    if (!apiKey || !model) {
+        return null;
+    }
+
+    const prompt = `Extract the following information from this academic reference. Return ONLY a valid JSON object with these exact keys: title, authors, year, doi, url. If any field cannot be found, use an empty string. Do not include any markdown formatting or explanation, just the raw JSON object.
+
+Reference: ${reference}
+
+Example output format:
+{"title":"Example Title","authors":"Smith, J., & Doe, A.","year":"2023","doi":"10.1234/example","url":"https://example.com"}`;
+
+    try {
+        const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('LLM API request failed');
+        }
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        // Extract JSON from response (handle markdown code blocks)
+        let jsonText = text.trim();
+        if (jsonText.startsWith('```json')) {
+            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        } else if (jsonText.startsWith('```')) {
+            jsonText = jsonText.replace(/```\n?/g, '').trim();
+        }
+
+        const extracted = JSON.parse(jsonText);
+
+        return {
+            title: extracted.title || '',
+            authors: extracted.authors || '',
+            year: extracted.year || '',
+            doi: extracted.doi || '',
+            url: extracted.url || ''
+        };
+    } catch (error) {
+        console.error('LLM extraction error:', error);
+        return null;
+    }
+}
+
+// Enhanced reference extraction with improved logic
+function extractReferenceInfo(reference) {
+    const result = {
+        original: reference,
+        title: '',
+        authors: '',
+        doi: '',
+        url: '',
+        year: '',
+        warnings: [],
+        extractionMethod: 'local'
+    };
+
+    let cleanRef = reference.trim();
+
+    // Step 1: Extract and remove DOI (most specific pattern first)
+    const doiPatterns = [
+        /https?:\/\/doi\.org\/(10\.\S+?)(?=[.,;\s)\]]|$)/i,
+        /doi:\s*(10\.\S+?)(?=[.,;\s)\]]|$)/i,
+        /\b(10\.\d{4,9}\/[^\s.,;)\]]+?)(?=[.,;\s)\]]|$)/i
+    ];
+
+    for (let pattern of doiPatterns) {
+        const doiMatch = cleanRef.match(pattern);
+        if (doiMatch) {
+            result.doi = doiMatch[1] || doiMatch[0];
+            result.doi = result.doi.replace(/^https?:\/\/doi\.org\//, '').replace(/[.,;)\]]+$/, '');
+            cleanRef = cleanRef.replace(doiMatch[0], ' ').trim();
+            break;
+        }
+    }
+
+    // Step 2: Extract and remove URLs (non-DOI)
+    const urlPattern = /https?:\/\/(?!doi\.org)[^\s.,;)\]]+/gi;
+    const urlMatch = cleanRef.match(urlPattern);
+    if (urlMatch) {
+        result.url = urlMatch[0].replace(/[.,;)\]]+$/, '');
+        cleanRef = cleanRef.replace(urlMatch[0], ' ').trim();
+    }
+
+    // Step 3: Extract and remove year in parentheses
+    const yearPattern = /\((\d{4})\)/;
+    const yearMatch = cleanRef.match(yearPattern);
+    if (yearMatch) {
+        result.year = yearMatch[1];
+        cleanRef = cleanRef.replace(yearMatch[0], ' ').trim();
+    }
+
+    // Step 4: Extract authors (beginning of reference)
+    const authorPattern1 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?)*)/;
+    const authorPattern2 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?(?:\s*,\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?)*(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?))/;
+    const authorPattern3 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?\s+et\s+al\.?)/;
+    const authorPattern4 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z][a-z]+(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z][a-z]+)*)/;
+
+    const authorPatterns = [authorPattern1, authorPattern2, authorPattern3, authorPattern4];
+
+    for (let pattern of authorPatterns) {
+        const authorMatch = cleanRef.match(pattern);
+        if (authorMatch) {
+            result.authors = authorMatch[1].trim();
+            cleanRef = cleanRef.replace(authorMatch[0], '').trim();
+            break;
+        }
+    }
+
+    // Step 5: Clean up remaining text
+    cleanRef = cleanRef
+        .replace(/^[.,;:\s]+|[.,;:\s]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Step 6: Extract title from remaining text
+    const titleQuoteMatch = cleanRef.match(/"([^"]+)"/);
+    if (titleQuoteMatch) {
+        result.title = titleQuoteMatch[1].trim();
+        cleanRef = cleanRef.replace(titleQuoteMatch[0], '').trim();
+    } else {
+        const titleMatch = cleanRef.match(/^([^.,]+[.,])/);
+        if (titleMatch) {
+            result.title = titleMatch[1].replace(/[.,]+$/, '').trim();
+        } else if (cleanRef.length > 0) {
+            result.title = cleanRef.replace(/[.,;)\]]+$/, '').trim();
+        }
+    }
+
+    // Clean up extracted fields
+    result.title = result.title.replace(/[.,;)\]]+$/, '').trim();
+    result.authors = result.authors.replace(/[.,;)\]]+$/, '').trim();
+
+    // Validation and warnings
+    if (!result.title) {
+        result.warnings.push('Title could not be extracted');
+    }
+    if (!result.authors) {
+        result.warnings.push('Authors could not be extracted');
+    }
+    if (!result.doi && !result.url) {
+        result.warnings.push('No DOI or URL found');
+    }
+    if (result.doi && !result.doi.match(/^10\.\d{4,}/)) {
+        result.warnings.push('DOI format may be invalid');
+    }
+    if (result.url && !result.url.match(/^https?:\/\//)) {
+        result.warnings.push('URL format may be invalid');
+    }
+
+    return result;
+}
+
+// Parse references from input
+function parseReferences(text) {
+    const references = [];
+    const lines = text.split('\n');
+    let currentRef = '';
+
+    for (let line of lines) {
+        line = line.trim();
+
+        if (line === '') {
+            if (currentRef) {
+                references.push(currentRef.trim());
+                currentRef = '';
+            }
+        } else {
+            currentRef += (currentRef ? ' ' : '') + line;
+        }
+    }
+
+    if (currentRef) {
+        references.push(currentRef.trim());
+    }
+
+    return references.filter(ref => ref.length > 0);
+}
+
+// Create Google Scholar search URL
+function getGoogleScholarUrl(title) {
+    if (!title) return '';
+    const query = encodeURIComponent(title);
+    return `https://scholar.google.com/scholar?q=${query}`;
+}
+
+// Display results in table
+function displayResults(extractedRefs) {
+    if (extractedRefs.length === 0) {
+        ui.resultsContainer.innerHTML = '<div style="text-align: center; color: #666; padding: 40px 20px;">No references found to process.</div>';
+        ui.exportButton.style.display = 'none';
+        return;
+    }
+
+    let html = `
+        <table>
+            <thead>
+                <tr>
+                    <th class="checkbox-cell"><input type="checkbox" id="selectAll"></th>
+                    <th>#</th>
+                    <th>Title</th>
+                    <th>Authors</th>
+                    <th>DOI/URL</th>
+                    <th>Google Scholar</th>
+                    <th>Feedback</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    extractedRefs.forEach((ref, index) => {
+        const status = ref.warnings.length === 0 ? 'verified' :
+                      (!ref.title || !ref.authors) ? 'error' : 'warning';
+        const statusClass = `status-${status}`;
+
+        const extractionBadge = ref.extractionMethod === 'llm'
+            ? '<span class="extraction-badge badge-llm">LLM</span>'
+            : '<span class="extraction-badge badge-local">Local</span>';
+
+        const doiUrlDisplay = ref.doi
+            ? `<a href="https://doi.org/${ref.doi}" target="_blank" class="link-button">DOI</a>`
+            : ref.url
+                ? `<a href="${ref.url}" target="_blank" class="link-button">URL</a>`
+                : '—';
+
+        const scholarUrl = getGoogleScholarUrl(ref.title);
+        const scholarLink = scholarUrl
+            ? `<a href="${scholarUrl}" target="_blank" class="link-button">Search</a>`
+            : '—';
+
+        html += `
+            <tr>
+                <td class="checkbox-cell"><input type="checkbox" class="row-checkbox" data-index="${index}"></td>
+                <td>${index + 1}</td>
+                <td class="${statusClass}">${ref.title || '<em>Not extracted</em>'}${extractionBadge}</td>
+                <td>${ref.authors || '<em>Not extracted</em>'}</td>
+                <td>${doiUrlDisplay}</td>
+                <td>${scholarLink}</td>
+                <td><input type="text" class="feedback-input" data-index="${index}" placeholder="Add notes..."></td>
+            </tr>
+        `;
+
+        if (ref.warnings.length > 0) {
+            html += `
+                <tr>
+                    <td colspan="7" style="background-color: #fff3cd; padding: 8px; font-size: 0.85rem;">
+                        ⚠️ ${ref.warnings.join(', ')}
+                    </td>
+                </tr>
+            `;
+        }
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+
+    ui.resultsContainer.innerHTML = html;
+    ui.exportButton.style.display = 'block';
+
+    // Setup select all checkbox
+    document.getElementById('selectAll').addEventListener('change', (e) => {
+        document.querySelectorAll('.row-checkbox').forEach(cb => {
+            cb.checked = e.target.checked;
+        });
+    });
+
+    // Store extracted references for export
+    window.extractedReferences = extractedRefs;
+}
+
+// Export selected references to CSV
+function exportToCSV() {
+    const selectedRefs = [];
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+
+    checkboxes.forEach(cb => {
+        const index = parseInt(cb.dataset.index);
+        const ref = window.extractedReferences[index];
+        const feedbackInput = document.querySelector(`.feedback-input[data-index="${index}"]`);
+        const feedback = feedbackInput ? feedbackInput.value : '';
+
+        selectedRefs.push({
+            ...ref,
+            feedback
+        });
+    });
+
+    if (selectedRefs.length === 0) {
+        alert('Please select at least one reference to export.');
+        return;
+    }
+
+    // Create CSV content
+    const headers = ['Title', 'Authors', 'Year', 'DOI', 'URL', 'Extraction Method', 'Warnings', 'Feedback'];
+    const csvRows = [headers.join(',')];
+
+    selectedRefs.forEach(ref => {
+        const row = [
+            `"${ref.title.replace(/"/g, '""')}"`,
+            `"${ref.authors.replace(/"/g, '""')}"`,
+            `"${ref.year}"`,
+            `"${ref.doi}"`,
+            `"${ref.url}"`,
+            `"${ref.extractionMethod}"`,
+            `"${ref.warnings.join('; ').replace(/"/g, '""')}"`,
+            `"${ref.feedback.replace(/"/g, '""')}"`
+        ];
+        csvRows.push(row.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'references_export.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+// Process references button with LLM fallback
+ui.processButton.addEventListener('click', async () => {
+    const text = ui.referencesInput.value.trim();
+
+    if (!text) {
+        alert('Please paste references to process.');
+        return;
+    }
+
+    ui.processButton.disabled = true;
+    ui.processButton.innerHTML = 'Processing...';
+    showProgress();
+
+    const references = parseReferences(text);
+    const extractedRefs = [];
+
+    for (let i = 0; i < references.length; i++) {
+        updateProgress(i + 1, references.length);
+
+        const ref = references[i];
+        let extracted = extractReferenceInfo(ref);
+
+        // If local extraction failed and API key is available, try LLM
+        if ((extracted.warnings.length > 0 || !extracted.title || !extracted.authors) && storage.get('geminiApiKey')) {
+            const llmExtracted = await extractWithLLM(ref);
+
+            if (llmExtracted && (llmExtracted.title || llmExtracted.authors)) {
+                // Merge results, preferring LLM where local failed
+                extracted = {
+                    original: ref,
+                    title: llmExtracted.title || extracted.title,
+                    authors: llmExtracted.authors || extracted.authors,
+                    doi: llmExtracted.doi || extracted.doi,
+                    url: llmExtracted.url || extracted.url,
+                    year: llmExtracted.year || extracted.year,
+                    warnings: [],
+                    extractionMethod: 'llm'
+                };
+
+                // Re-validate
+                if (!extracted.title) extracted.warnings.push('Title could not be extracted');
+                if (!extracted.authors) extracted.warnings.push('Authors could not be extracted');
+                if (!extracted.doi && !extracted.url) extracted.warnings.push('No DOI or URL found');
+            }
+        }
+
+        extractedRefs.push(extracted);
+    }
+
+    displayResults(extractedRefs);
+    hideProgress();
+
+    ui.processButton.disabled = false;
+    ui.processButton.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
+        </svg>
+        Process References
+    `;
+});
+
+// Export button
+ui.exportButton.addEventListener('click', exportToCSV);
+</script>
+
+</body>
+</html>
