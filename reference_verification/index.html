@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reference Verification Tool</title>
-    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png"
+          type="image/png">
     <style>
         :root {
             --primary-color: #4a6fa5;
@@ -146,17 +147,41 @@
             cursor: not-allowed;
         }
 
-        .button-primary { background-color: var(--primary-color); }
-        .button-primary:hover:not(:disabled) { background-color: #3b5a8c; transform: translateY(-2px); }
+        .button-primary {
+            background-color: var(--primary-color);
+        }
 
-        .button-secondary { background-color: #6c757d; }
-        .button-secondary:hover:not(:disabled) { background-color: #5a6268; transform: translateY(-2px); }
+        .button-primary:hover:not(:disabled) {
+            background-color: #3b5a8c;
+            transform: translateY(-2px);
+        }
 
-        .button-success { background-color: var(--accent-color); }
-        .button-success:hover:not(:disabled) { background-color: #27ae60; transform: translateY(-2px); }
+        .button-secondary {
+            background-color: #6c757d;
+        }
 
-        .button-danger { background-color: var(--danger-color); }
-        .button-danger:hover:not(:disabled) { background-color: #c0392b; transform: translateY(-2px); }
+        .button-secondary:hover:not(:disabled) {
+            background-color: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .button-success {
+            background-color: var(--accent-color);
+        }
+
+        .button-success:hover:not(:disabled) {
+            background-color: #27ae60;
+            transform: translateY(-2px);
+        }
+
+        .button-danger {
+            background-color: var(--danger-color);
+        }
+
+        .button-danger:hover:not(:disabled) {
+            background-color: #c0392b;
+            transform: translateY(-2px);
+        }
 
         .results-container {
             background-color: var(--light-gray);
@@ -326,7 +351,8 @@
             <div>
                 <label for="apiKey">Gemini API Key (for enhanced extraction & verification)</label>
                 <input type="password" id="apiKey" placeholder="Enter your Gemini API key">
-                <small class="status-message">Stored locally in your browser. Used for fallback extraction and automatic verification.</small>
+                <small class="status-message">Stored locally in your browser. Used for fallback extraction and automatic
+                    verification.</small>
             </div>
 
             <div>
@@ -342,7 +368,8 @@
     <!-- References Input -->
     <div class="column">
         <h2>Paste References</h2>
-        <label for="referencesInput">Enter your references (supports numbered format [1], [2], etc. or blank line separation)</label>
+        <label for="referencesInput">Enter your references (supports numbered format [1], [2], etc. or blank line
+            separation)</label>
         <textarea id="referencesInput" placeholder="Example:
 [1] Smith, J., & Johnson, A. (2023). Understanding Machine Learning. Journal of AI Research, 45(2), 123-145. https://doi.org/10.1234/example.2023
 [2] Brown, K. (2022). Data Science Fundamentals. Academic Press. http://example.com/paper
@@ -382,447 +409,467 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
 </div>
 
 <script>
-// Storage utilities
-const storage = {
-    get: (key) => localStorage.getItem(key),
-    set: (key, value) => localStorage.setItem(key, value)
-};
+    // Storage utilities
+    const storage = {
+        get: (key) => localStorage.getItem(key),
+        set: (key, value) => localStorage.setItem(key, value)
+    };
 
-// DOM elements
-const ui = {
-    apiKeyInput: document.getElementById('apiKey'),
-    modelSelect: document.getElementById('modelSelect'),
-    modelStatus: document.getElementById('modelStatus'),
-    referencesInput: document.getElementById('referencesInput'),
-    processButton: document.getElementById('processButton'),
-    resultsContainer: document.getElementById('resultsContainer'),
-    exportButton: document.getElementById('exportButton'),
-    progressContainer: document.getElementById('progressContainer'),
-    progressBar: document.getElementById('progressBar')
-};
+    // DOM elements
+    const ui = {
+        apiKeyInput: document.getElementById('apiKey'),
+        modelSelect: document.getElementById('modelSelect'),
+        modelStatus: document.getElementById('modelStatus'),
+        referencesInput: document.getElementById('referencesInput'),
+        processButton: document.getElementById('processButton'),
+        resultsContainer: document.getElementById('resultsContainer'),
+        exportButton: document.getElementById('exportButton'),
+        progressContainer: document.getElementById('progressContainer'),
+        progressBar: document.getElementById('progressBar')
+    };
 
-// API configuration
-const API_CONFIG = {
-    apiListModelsUrl: (apiKey) => `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
-    apiGenerateUrl: (apiKey, model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
-};
+    // API configuration
+    const API_CONFIG = {
+        apiListModelsUrl: (apiKey) => `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+        apiGenerateUrl: (apiKey, model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+    };
 
-// Initialize
-ui.apiKeyInput.value = storage.get('geminiApiKey') || '';
-const savedModel = storage.get('geminiModel') || '';
+    // Initialize
+    ui.apiKeyInput.value = storage.get('geminiApiKey') || '';
+    const savedModel = storage.get('geminiModel') || '';
 
-// Update progress bar
-function updateProgress(current, total, message = '') {
-    const percentage = Math.round((current / total) * 100);
-    ui.progressBar.style.width = percentage + '%';
-    ui.progressBar.textContent = message || `Processing ${current}/${total} (${percentage}%)`;
-}
-
-// Show/hide progress bar
-function showProgress() {
-    ui.progressContainer.style.display = 'block';
-}
-
-function hideProgress() {
-    ui.progressContainer.style.display = 'none';
-    ui.progressBar.style.width = '0%';
-    ui.progressBar.textContent = '0%';
-}
-
-// Fetch available models
-async function fetchAvailableModels(apiKey) {
-    if (!apiKey) {
-        ui.modelSelect.innerHTML = '<option value="">Enter API Key to load models</option>';
-        ui.modelSelect.disabled = true;
-        ui.modelStatus.textContent = '';
-        return;
+    // Update progress bar
+    function updateProgress(current, total, message = '') {
+        const percentage = Math.round((current / total) * 100);
+        ui.progressBar.style.width = percentage + '%';
+        ui.progressBar.textContent = message || `Processing ${current}/${total} (${percentage}%)`;
     }
 
-    ui.modelSelect.disabled = true;
-    ui.modelSelect.innerHTML = '<option>Loading models...</option>';
-    ui.modelStatus.textContent = 'Fetching available models...';
+    // Show/hide progress bar
+    function showProgress() {
+        ui.progressContainer.style.display = 'block';
+    }
 
-    try {
-        const response = await fetch(API_CONFIG.apiListModelsUrl(apiKey));
+    function hideProgress() {
+        ui.progressContainer.style.display = 'none';
+        ui.progressBar.style.width = '0%';
+        ui.progressBar.textContent = '0%';
+    }
 
-        if (!response.ok) {
-            throw new Error('Failed to fetch models. Check API key.');
+    // Fetch available models
+    async function fetchAvailableModels(apiKey) {
+        if (!apiKey) {
+            ui.modelSelect.innerHTML = '<option value="">Enter API Key to load models</option>';
+            ui.modelSelect.disabled = true;
+            ui.modelStatus.textContent = '';
+            return;
         }
 
-        const data = await response.json();
-        const models = data.models
-            .filter(model => model.supportedGenerationMethods &&
-                           model.supportedGenerationMethods.includes('generateContent'))
-            .map(model => model.name.replace('models/', ''));
+        ui.modelSelect.disabled = true;
+        ui.modelSelect.innerHTML = '<option>Loading models...</option>';
+        ui.modelStatus.textContent = 'Fetching available models...';
 
-        if (models.length === 0) {
-            throw new Error('No compatible models found for this API key.');
+        try {
+            const response = await fetch(API_CONFIG.apiListModelsUrl(apiKey));
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch models. Check API key.');
+            }
+
+            const data = await response.json();
+            const models = data.models
+                .filter(model => model.supportedGenerationMethods &&
+                    model.supportedGenerationMethods.includes('generateContent'))
+                .map(model => model.name.replace('models/', ''));
+
+            if (models.length === 0) {
+                throw new Error('No compatible models found for this API key.');
+            }
+
+            ui.modelSelect.innerHTML = '';
+            models.forEach(modelName => {
+                const option = document.createElement('option');
+                option.value = modelName;
+                option.textContent = modelName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                ui.modelSelect.appendChild(option);
+            });
+
+            // Select saved model or default
+            if (savedModel && models.includes(savedModel)) {
+                ui.modelSelect.value = savedModel;
+            } else if (models.includes('gemini-2.0-flash-exp')) {
+                ui.modelSelect.value = 'gemini-2.0-flash-exp';
+            } else if (models.includes('gemini-1.5-flash')) {
+                ui.modelSelect.value = 'gemini-1.5-flash';
+            } else {
+                ui.modelSelect.value = models[0];
+            }
+
+            storage.set('geminiModel', ui.modelSelect.value);
+            ui.modelStatus.textContent = `${models.length} models available`;
+            ui.modelSelect.disabled = false;
+
+        } catch (error) {
+            console.error(error);
+            ui.modelSelect.innerHTML = '<option value="">Error loading models</option>';
+            ui.modelStatus.textContent = `Error: ${error.message}`;
+            ui.modelSelect.disabled = true;
         }
+    }
 
-        ui.modelSelect.innerHTML = '';
-        models.forEach(modelName => {
-            const option = document.createElement('option');
-            option.value = modelName;
-            option.textContent = modelName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-            ui.modelSelect.appendChild(option);
-        });
+    // Load models on init if API key exists
+    if (ui.apiKeyInput.value) {
+        fetchAvailableModels(ui.apiKeyInput.value);
+    }
 
-        // Select saved model or default
-        if (savedModel && models.includes(savedModel)) {
-            ui.modelSelect.value = savedModel;
-        } else if (models.includes('gemini-2.0-flash-exp')) {
-            ui.modelSelect.value = 'gemini-2.0-flash-exp';
-        } else if (models.includes('gemini-1.5-flash')) {
-            ui.modelSelect.value = 'gemini-1.5-flash';
-        } else {
-            ui.modelSelect.value = models[0];
-        }
+    // Save API key and fetch models on change
+    ui.apiKeyInput.addEventListener('change', () => {
+        const apiKey = ui.apiKeyInput.value.trim();
+        storage.set('geminiApiKey', apiKey);
+        fetchAvailableModels(apiKey);
+    });
 
+    // Save model selection
+    ui.modelSelect.addEventListener('change', () => {
         storage.set('geminiModel', ui.modelSelect.value);
-        ui.modelStatus.textContent = `${models.length} models available`;
-        ui.modelSelect.disabled = false;
+    });
 
-    } catch (error) {
-        console.error(error);
-        ui.modelSelect.innerHTML = '<option value="">Error loading models</option>';
-        ui.modelStatus.textContent = `Error: ${error.message}`;
-        ui.modelSelect.disabled = true;
-    }
-}
+    // LLM extraction function
+    async function extractWithLLM(reference) {
+        const apiKey = storage.get('geminiApiKey');
+        const model = storage.get('geminiModel');
 
-// Load models on init if API key exists
-if (ui.apiKeyInput.value) {
-    fetchAvailableModels(ui.apiKeyInput.value);
-}
+        if (!apiKey || !model) {
+            return null;
+        }
 
-// Save API key and fetch models on change
-ui.apiKeyInput.addEventListener('change', () => {
-    const apiKey = ui.apiKeyInput.value.trim();
-    storage.set('geminiApiKey', apiKey);
-    fetchAvailableModels(apiKey);
-});
-
-// Save model selection
-ui.modelSelect.addEventListener('change', () => {
-    storage.set('geminiModel', ui.modelSelect.value);
-});
-
-// LLM extraction function
-async function extractWithLLM(reference) {
-    const apiKey = storage.get('geminiApiKey');
-    const model = storage.get('geminiModel');
-
-    if (!apiKey || !model) {
-        return null;
-    }
-
-    const prompt = `Extract the following information from this academic reference. Return ONLY a valid JSON object with these exact keys: title, authors, year, doi, url. If any field cannot be found, use an empty string. Do not include any markdown formatting or explanation, just the raw JSON object.
+        const prompt = `Extract the following information from this academic reference. Return ONLY a valid JSON object with these exact keys: title, authors, year, doi, url. If any field cannot be found, use an empty string. Do not include any markdown formatting or explanation, just the raw JSON object.
 
 Reference: ${reference}
 
 Example output format:
 {"title":"Example Title","authors":"Smith, J., & Doe, A.","year":"2023","doi":"10.1234/example","url":"https://example.com"}`;
 
-    try {
-        const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: prompt }]
-                }]
-            })
-        });
+        try {
+            const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{text: prompt}]
+                    }]
+                })
+            });
 
-        if (!response.ok) {
-            throw new Error('LLM API request failed');
+            if (!response.ok) {
+                throw new Error('LLM API request failed');
+            }
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+            // Extract JSON from response (handle markdown code blocks)
+            let jsonText = text.trim();
+            if (jsonText.startsWith('```json')) {
+                jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            } else if (jsonText.startsWith('```')) {
+                jsonText = jsonText.replace(/```\n?/g, '').trim();
+            }
+
+            const extracted = JSON.parse(jsonText);
+
+            return {
+                title: extracted.title || '',
+                authors: extracted.authors || '',
+                year: extracted.year || '',
+                doi: extracted.doi || '',
+                url: extracted.url || ''
+            };
+        } catch (error) {
+            console.error('LLM extraction error:', error);
+            return null;
         }
-
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-        // Extract JSON from response (handle markdown code blocks)
-        let jsonText = text.trim();
-        if (jsonText.startsWith('```json')) {
-            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        } else if (jsonText.startsWith('```')) {
-            jsonText = jsonText.replace(/```\n?/g, '').trim();
-        }
-
-        const extracted = JSON.parse(jsonText);
-
-        return {
-            title: extracted.title || '',
-            authors: extracted.authors || '',
-            year: extracted.year || '',
-            doi: extracted.doi || '',
-            url: extracted.url || ''
-        };
-    } catch (error) {
-        console.error('LLM extraction error:', error);
-        return null;
-    }
-}
-
-// Verify reference using LLM
-async function verifyReferenceWithLLM(reference) {
-    const apiKey = storage.get('geminiApiKey');
-    const model = storage.get('geminiModel');
-
-    if (!apiKey || !model) {
-        return {
-            verified: false,
-            message: 'API key not configured for verification'
-        };
     }
 
-    const prompt = `You are a reference verification assistant. Given this reference, determine if it appears to be a real, published academic work. Check if the title, authors, venue, and DOI/URL seem legitimate.
+    // Verify reference using LLM
+    async function verifyReferenceWithLLM(reference) {
+        const apiKey = storage.get('geminiApiKey');
+        const model = storage.get('geminiModel');
 
-Reference:
-Title: ${reference.title}
-Authors: ${reference.authors}
-Year: ${reference.year}
-DOI: ${reference.doi}
-URL: ${reference.url}
+        if (!apiKey || !model) {
+            return {
+                verified: false,
+                message: 'API key not configured for verification'
+            };
+        }
 
-Respond ONLY with a JSON object in this exact format:
+        const prompt = `You are a highly accurate academic reference verification assistant. Your task is to verify if a given reference corresponds to a real, published academic work.
+
+You MUST use your web search tool to find the work online.
+
+Reference to Verify:
+Title: '${reference.title}'
+Authors: '${reference.authors}'
+Year: '${reference.year}'
+DOI: '${reference.doi}'
+URL: '${reference.url}'
+
+Follow these steps precisely:
+1.  **Search:** First, try to resolve the DOI (if provided). If no DOI, try the URL (if provided). If neither is provided or they fail, search for the paper by its 'Title' and 'Authors'.
+2.  **Analyze Findings:**
+    * **If NOT found:** If you cannot find any strong evidence of a published paper with this title or DOI, set "exists" to false, "confidence" to "high", and explain why in the "message".  If the title does not match with given title, set "exists" to false.
+    * **If found:** If you find a matching academic paper, set "exists" to true.
+3.  **Compare Details (if found):**
+    * Compare the found (canonical) data against the provided reference.
+    * **foundTitle:** Record the exact title you found.
+    * **foundAuthors:** Record the authors as listed on the found publication.
+    * **authorMatch:** Set to 'true' if the provided authors are a substantial match for the found authors. Be robust to abbreviations (e.g., 'J. Smith' vs 'John Smith') or 'et al.' usage. Set to 'false' only if there is a clear mismatch (e.g., different lead author).
+    * **yearMatch:** Set to 'true' if the provided 'Year' matches the publication year you found. (Allow a +/- 1 year difference for pre-prints vs. final versions).
+    * **canonicalUrl:** Record the DOI link (e.g., "https://doi.org/...") or the best URL you found for the paper.
+    * **confidence:** Set to 'high' if the DOI/Title/Authors all match. Set to 'medium' if the title matches but authors or year are slightly different. Set to 'low' if you found a paper but are very unsure it's the same one.
+    * **message:** Briefly explain your findings. Note any discrepancies (e.g., "Paper found via title, but provided year was 2020 and actual was 2021.").
+
+Respond ONLY with a JSON object in this exact format. Do not add any other text, markdown formatting, or explanations outside the JSON.
 {
   "exists": true/false,
-  "confidence": "high"/"medium"/"low",
+  "confidence": "high" | "medium" | "low",
   "authorMatch": true/false,
-  "message": "Brief explanation of your findings"
+  "yearMatch": true/false,
+  "foundTitle": "The canonical title you found",
+  "foundAuthors": "The canonical authors you found (e.g., 'Smith, J.; Doe, A.')",
+  "canonicalUrl": "The DOI link or best URL you found",
+  "message": "Brief explanation of findings and any discrepancies."
 }
+`;
 
-If you cannot verify (e.g., missing information), set exists to false and explain why in the message.`;
+        try {
+            const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{text: prompt}]
+                    }]
+                })
+            });
 
-    try {
-        const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: prompt }]
-                }]
-            })
-        });
+            if (!response.ok) {
+                throw new Error('LLM verification request failed');
+            }
 
-        if (!response.ok) {
-            throw new Error('LLM verification request failed');
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+            // Extract JSON from response
+            let jsonText = text.trim();
+            if (jsonText.startsWith('```json')) {
+                jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            } else if (jsonText.startsWith('```')) {
+                jsonText = jsonText.replace(/```\n?/g, '').trim();
+            }
+
+            const result = JSON.parse(jsonText);
+
+            return {
+                verified: result.exists && result.confidence !== 'low',
+                authorMatch: result.authorMatch !== false,
+                confidence: result.confidence,
+                message: result.message || 'Verification complete'
+            };
+        } catch (error) {
+            console.error('LLM verification error:', error);
+            return {
+                verified: false,
+                message: 'Verification failed: ' + error.message
+            };
         }
+    }
 
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-        // Extract JSON from response
-        let jsonText = text.trim();
-        if (jsonText.startsWith('```json')) {
-            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        } else if (jsonText.startsWith('```')) {
-            jsonText = jsonText.replace(/```\n?/g, '').trim();
-        }
-
-        const result = JSON.parse(jsonText);
-
-        return {
-            verified: result.exists && result.confidence !== 'low',
-            authorMatch: result.authorMatch !== false,
-            confidence: result.confidence,
-            message: result.message || 'Verification complete'
+    // Enhanced reference extraction with improved logic
+    function extractReferenceInfo(reference) {
+        const result = {
+            original: reference,
+            title: '',
+            authors: '',
+            doi: '',
+            url: '',
+            year: '',
+            warnings: [],
+            extractionMethod: 'local'
         };
-    } catch (error) {
-        console.error('LLM verification error:', error);
-        return {
-            verified: false,
-            message: 'Verification failed: ' + error.message
-        };
-    }
-}
 
-// Enhanced reference extraction with improved logic
-function extractReferenceInfo(reference) {
-    const result = {
-        original: reference,
-        title: '',
-        authors: '',
-        doi: '',
-        url: '',
-        year: '',
-        warnings: [],
-        extractionMethod: 'local'
-    };
+        let cleanRef = reference.trim();
 
-    let cleanRef = reference.trim();
+        // Step 1: Extract and remove DOI (most specific pattern first)
+        const doiPatterns = [
+            /https?:\/\/doi\.org\/(10\.\S+?)(?=[.,;\s)\]]|$)/i,
+            /doi:\s*(10\.\S+?)(?=[.,;\s)\]]|$)/i,
+            /\b(10\.\d{4,9}\/[^\s.,;)\]]+?)(?=[.,;\s)\]]|$)/i
+        ];
 
-    // Step 1: Extract and remove DOI (most specific pattern first)
-    const doiPatterns = [
-        /https?:\/\/doi\.org\/(10\.\S+?)(?=[.,;\s)\]]|$)/i,
-        /doi:\s*(10\.\S+?)(?=[.,;\s)\]]|$)/i,
-        /\b(10\.\d{4,9}\/[^\s.,;)\]]+?)(?=[.,;\s)\]]|$)/i
-    ];
-
-    for (let pattern of doiPatterns) {
-        const doiMatch = cleanRef.match(pattern);
-        if (doiMatch) {
-            result.doi = doiMatch[1] || doiMatch[0];
-            result.doi = result.doi.replace(/^https?:\/\/doi\.org\//, '').replace(/[.,;)\]]+$/, '');
-            cleanRef = cleanRef.replace(doiMatch[0], ' ').trim();
-            break;
-        }
-    }
-
-    // Step 2: Extract and remove URLs (non-DOI)
-    const urlPattern = /https?:\/\/(?!doi\.org)[^\s.,;)\]]+/gi;
-    const urlMatch = cleanRef.match(urlPattern);
-    if (urlMatch) {
-        result.url = urlMatch[0].replace(/[.,;)\]]+$/, '');
-        cleanRef = cleanRef.replace(urlMatch[0], ' ').trim();
-    }
-
-    // Step 3: Extract and remove year in parentheses
-    const yearPattern = /\((\d{4})\)/;
-    const yearMatch = cleanRef.match(yearPattern);
-    if (yearMatch) {
-        result.year = yearMatch[1];
-        cleanRef = cleanRef.replace(yearMatch[0], ' ').trim();
-    }
-
-    // Step 4: Extract authors (beginning of reference)
-    const authorPattern1 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?)*)/;
-    const authorPattern2 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?(?:\s*,\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?)*(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?))/;
-    const authorPattern3 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?\s+et\s+al\.?)/;
-    const authorPattern4 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z][a-z]+(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z][a-z]+)*)/;
-
-    const authorPatterns = [authorPattern1, authorPattern2, authorPattern3, authorPattern4];
-
-    for (let pattern of authorPatterns) {
-        const authorMatch = cleanRef.match(pattern);
-        if (authorMatch) {
-            result.authors = authorMatch[1].trim();
-            cleanRef = cleanRef.replace(authorMatch[0], '').trim();
-            break;
-        }
-    }
-
-    // Step 5: Clean up remaining text
-    cleanRef = cleanRef
-        .replace(/^[.,;:\s]+|[.,;:\s]+$/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    // Step 6: Extract title from remaining text
-    const titleQuoteMatch = cleanRef.match(/"([^"]+)"/);
-    if (titleQuoteMatch) {
-        result.title = titleQuoteMatch[1].trim();
-        cleanRef = cleanRef.replace(titleQuoteMatch[0], '').trim();
-    } else {
-        const titleMatch = cleanRef.match(/^([^.,]+[.,])/);
-        if (titleMatch) {
-            result.title = titleMatch[1].replace(/[.,]+$/, '').trim();
-        } else if (cleanRef.length > 0) {
-            result.title = cleanRef.replace(/[.,;)\]]+$/, '').trim();
-        }
-    }
-
-    // Clean up extracted fields
-    result.title = result.title.replace(/[.,;)\]]+$/, '').trim();
-    result.authors = result.authors.replace(/[.,;)\]]+$/, '').trim();
-
-    // Validation and warnings
-    if (!result.title) {
-        result.warnings.push('Title could not be extracted');
-    }
-    if (!result.authors) {
-        result.warnings.push('Authors could not be extracted');
-    }
-    if (!result.doi && !result.url) {
-        result.warnings.push('No DOI or URL found');
-    }
-    if (result.doi && !result.doi.match(/^10\.\d{4,}/)) {
-        result.warnings.push('DOI format may be invalid');
-    }
-    if (result.url && !result.url.match(/^https?:\/\//)) {
-        result.warnings.push('URL format may be invalid');
-    }
-
-    return result;
-}
-
-// Parse references from input - IMPROVED to handle numbered format AND newlines
-function parseReferences(text) {
-    const references = [];
-
-    // First, try to detect if it's numbered format like [1], [2], etc.
-    const numberedPattern = /\[\d+\]/;
-    const hasNumberedFormat = numberedPattern.test(text);
-
-    if (hasNumberedFormat) {
-        // Split by numbered markers
-        const parts = text.split(/\[\d+\]/);
-
-        for (let i = 1; i < parts.length; i++) { // Start from 1 to skip empty first part
-            const ref = parts[i].trim();
-            if (ref.length > 0) {
-                // Remove leading/trailing whitespace and combine multi-line references
-                const cleanedRef = ref.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
-                references.push(cleanedRef);
+        for (let pattern of doiPatterns) {
+            const doiMatch = cleanRef.match(pattern);
+            if (doiMatch) {
+                result.doi = doiMatch[1] || doiMatch[0];
+                result.doi = result.doi.replace(/^https?:\/\/doi\.org\//, '').replace(/[.,;)\]]+$/, '');
+                cleanRef = cleanRef.replace(doiMatch[0], ' ').trim();
+                break;
             }
         }
-    } else {
-        // Try to detect if each line is a separate reference
-        // Heuristic: if most lines start with a capital letter and are long enough, treat each as a reference
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-        const potentialRefs = lines.filter(line =>
-            line.length > 50 && // Reasonable minimum length
-            /^[A-Z]/.test(line) // Starts with capital letter
-        );
-
-        // If most non-empty lines look like references, treat each line as a reference
-        if (potentialRefs.length >= lines.length * 0.7) {
-            return lines;
+        // Step 2: Extract and remove URLs (non-DOI)
+        const urlPattern = /https?:\/\/(?!doi\.org)[^\s.,;)\]]+/gi;
+        const urlMatch = cleanRef.match(urlPattern);
+        if (urlMatch) {
+            result.url = urlMatch[0].replace(/[.,;)\]]+$/, '');
+            cleanRef = cleanRef.replace(urlMatch[0], ' ').trim();
         }
 
-        // Otherwise, use blank-line separation (original logic)
-        let currentRef = '';
-        const textLines = text.split('\n');
+        // Step 3: Extract and remove year in parentheses
+        const yearPattern = /\((\d{4})\)/;
+        const yearMatch = cleanRef.match(yearPattern);
+        if (yearMatch) {
+            result.year = yearMatch[1];
+            cleanRef = cleanRef.replace(yearMatch[0], ' ').trim();
+        }
 
-        for (let line of textLines) {
-            line = line.trim();
+        // Step 4: Extract authors (beginning of reference)
+        const authorPattern1 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?)*)/;
+        const authorPattern2 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?(?:\s*,\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?)*(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?))/;
+        const authorPattern3 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?\s+et\s+al\.?)/;
+        const authorPattern4 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z][a-z]+(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z][a-z]+)*)/;
 
-            if (line === '') {
-                if (currentRef) {
-                    references.push(currentRef.trim());
-                    currentRef = '';
+        const authorPatterns = [authorPattern1, authorPattern2, authorPattern3, authorPattern4];
+
+        for (let pattern of authorPatterns) {
+            const authorMatch = cleanRef.match(pattern);
+            if (authorMatch) {
+                result.authors = authorMatch[1].trim();
+                cleanRef = cleanRef.replace(authorMatch[0], '').trim();
+                break;
+            }
+        }
+
+        // Step 5: Clean up remaining text
+        cleanRef = cleanRef
+            .replace(/^[.,;:\s]+|[.,;:\s]+$/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        // Step 6: Extract title from remaining text
+        const titleQuoteMatch = cleanRef.match(/"([^"]+)"/);
+        if (titleQuoteMatch) {
+            result.title = titleQuoteMatch[1].trim();
+            cleanRef = cleanRef.replace(titleQuoteMatch[0], '').trim();
+        } else {
+            const titleMatch = cleanRef.match(/^([^.,]+[.,])/);
+            if (titleMatch) {
+                result.title = titleMatch[1].replace(/[.,]+$/, '').trim();
+            } else if (cleanRef.length > 0) {
+                result.title = cleanRef.replace(/[.,;)\]]+$/, '').trim();
+            }
+        }
+
+        // Clean up extracted fields
+        result.title = result.title.replace(/[.,;)\]]+$/, '').trim();
+        result.authors = result.authors.replace(/[.,;)\]]+$/, '').trim();
+
+        // Validation and warnings
+        if (!result.title) {
+            result.warnings.push('Title could not be extracted');
+        }
+        if (!result.authors) {
+            result.warnings.push('Authors could not be extracted');
+        }
+        if (!result.doi && !result.url) {
+            result.warnings.push('No DOI or URL found');
+        }
+        if (result.doi && !result.doi.match(/^10\.\d{4,}/)) {
+            result.warnings.push('DOI format may be invalid');
+        }
+        if (result.url && !result.url.match(/^https?:\/\//)) {
+            result.warnings.push('URL format may be invalid');
+        }
+
+        return result;
+    }
+
+    // Parse references from input - IMPROVED to handle numbered format AND newlines
+    function parseReferences(text) {
+        const references = [];
+
+        // First, try to detect if it's numbered format like [1], [2], etc.
+        const numberedPattern = /\[\d+\]/;
+        const hasNumberedFormat = numberedPattern.test(text);
+
+        if (hasNumberedFormat) {
+            // Split by numbered markers
+            const parts = text.split(/\[\d+\]/);
+
+            for (let i = 1; i < parts.length; i++) { // Start from 1 to skip empty first part
+                const ref = parts[i].trim();
+                if (ref.length > 0) {
+                    // Remove leading/trailing whitespace and combine multi-line references
+                    const cleanedRef = ref.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+                    references.push(cleanedRef);
                 }
-            } else {
-                currentRef += (currentRef ? ' ' : '') + line;
+            }
+        } else {
+            // Try to detect if each line is a separate reference
+            // Heuristic: if most lines start with a capital letter and are long enough, treat each as a reference
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+            const potentialRefs = lines.filter(line =>
+                line.length > 50 && // Reasonable minimum length
+                /^[A-Z]/.test(line) // Starts with capital letter
+            );
+
+            // If most non-empty lines look like references, treat each line as a reference
+            if (potentialRefs.length >= lines.length * 0.7) {
+                return lines;
+            }
+
+            // Otherwise, use blank-line separation (original logic)
+            let currentRef = '';
+            const textLines = text.split('\n');
+
+            for (let line of textLines) {
+                line = line.trim();
+
+                if (line === '') {
+                    if (currentRef) {
+                        references.push(currentRef.trim());
+                        currentRef = '';
+                    }
+                } else {
+                    currentRef += (currentRef ? ' ' : '') + line;
+                }
+            }
+
+            if (currentRef) {
+                references.push(currentRef.trim());
             }
         }
 
-        if (currentRef) {
-            references.push(currentRef.trim());
+        return references.filter(ref => ref.length > 0);
+    }
+
+    // Create Google Scholar search URL
+    function getGoogleScholarUrl(title) {
+        if (!title) return '';
+        const query = encodeURIComponent(title);
+        return `https://scholar.google.com/scholar?q=${query}`;
+    }
+
+    // Display results in table
+    function displayResults(extractedRefs) {
+        if (extractedRefs.length === 0) {
+            ui.resultsContainer.innerHTML = '<div style="text-align: center; color: #666; padding: 40px 20px;">No references found to process.</div>';
+            ui.exportButton.style.display = 'none';
+            return;
         }
-    }
 
-    return references.filter(ref => ref.length > 0);
-}
-
-// Create Google Scholar search URL
-function getGoogleScholarUrl(title) {
-    if (!title) return '';
-    const query = encodeURIComponent(title);
-    return `https://scholar.google.com/scholar?q=${query}`;
-}
-
-// Display results in table
-function displayResults(extractedRefs) {
-    if (extractedRefs.length === 0) {
-        ui.resultsContainer.innerHTML = '<div style="text-align: center; color: #666; padding: 40px 20px;">No references found to process.</div>';
-        ui.exportButton.style.display = 'none';
-        return;
-    }
-
-    let html = `
+        let html = `
         <table>
             <thead>
                 <tr>
@@ -838,41 +885,41 @@ function displayResults(extractedRefs) {
             <tbody>
     `;
 
-    extractedRefs.forEach((ref, index) => {
-        const status = ref.warnings.length === 0 ? 'verified' :
-                      (!ref.title || !ref.authors) ? 'error' : 'warning';
-        const statusClass = `status-${status}`;
+        extractedRefs.forEach((ref, index) => {
+            const status = ref.warnings.length === 0 ? 'verified' :
+                (!ref.title || !ref.authors) ? 'error' : 'warning';
+            const statusClass = `status-${status}`;
 
-        const extractionBadge = ref.extractionMethod === 'llm'
-            ? '<span class="extraction-badge badge-llm">LLM</span>'
-            : '<span class="extraction-badge badge-local">Local</span>';
+            const extractionBadge = ref.extractionMethod === 'llm'
+                ? '<span class="extraction-badge badge-llm">LLM</span>'
+                : '<span class="extraction-badge badge-local">Local</span>';
 
-        const doiUrlDisplay = ref.doi
-            ? `<a href="https://doi.org/${ref.doi}" target="_blank" class="link-button">DOI</a>`
-            : ref.url
-                ? `<a href="${ref.url}" target="_blank" class="link-button">URL</a>`
+            const doiUrlDisplay = ref.doi
+                ? `<a href="https://doi.org/${ref.doi}" target="_blank" class="link-button">DOI</a>`
+                : ref.url
+                    ? `<a href="${ref.url}" target="_blank" class="link-button">URL</a>`
+                    : '—';
+
+            const scholarUrl = getGoogleScholarUrl(ref.title);
+            const scholarLink = scholarUrl
+                ? `<a href="${scholarUrl}" target="_blank" class="link-button">Search</a>`
                 : '—';
 
-        const scholarUrl = getGoogleScholarUrl(ref.title);
-        const scholarLink = scholarUrl
-            ? `<a href="${scholarUrl}" target="_blank" class="link-button">Search</a>`
-            : '—';
+            // Verification feedback
+            let feedbackHtml = '<span class="feedback-cell">Verifying...</span>';
+            if (ref.verification) {
+                const feedbackClass = ref.verification.verified ? 'feedback-verified' :
+                    !ref.verification.authorMatch ? 'feedback-error' :
+                        'feedback-warning';
 
-        // Verification feedback
-        let feedbackHtml = '<span class="feedback-cell">Verifying...</span>';
-        if (ref.verification) {
-            const feedbackClass = ref.verification.verified ? 'feedback-verified' :
-                                 !ref.verification.authorMatch ? 'feedback-error' :
-                                 'feedback-warning';
+                let icon = '✓';
+                if (!ref.verification.verified) icon = '✗';
+                else if (!ref.verification.authorMatch) icon = '⚠';
 
-            let icon = '✓';
-            if (!ref.verification.verified) icon = '✗';
-            else if (!ref.verification.authorMatch) icon = '⚠';
+                feedbackHtml = `<span class="feedback-cell ${feedbackClass}">${icon} ${ref.verification.message}</span>`;
+            }
 
-            feedbackHtml = `<span class="feedback-cell ${feedbackClass}">${icon} ${ref.verification.message}</span>`;
-        }
-
-        html += `
+            html += `
             <tr>
                 <td class="checkbox-cell"><input type="checkbox" class="row-checkbox" data-index="${index}"></td>
                 <td>${index + 1}</td>
@@ -884,182 +931,280 @@ function displayResults(extractedRefs) {
             </tr>
         `;
 
-        if (ref.warnings.length > 0) {
-            html += `
+            if (ref.warnings.length > 0) {
+                html += `
                 <tr>
                     <td colspan="7" style="background-color: #fff3cd; padding: 8px; font-size: 0.85rem;">
                         ⚠️ ${ref.warnings.join(', ')}
                     </td>
                 </tr>
             `;
-        }
-    });
+            }
+        });
 
-    html += `
+        html += `
             </tbody>
         </table>
     `;
 
-    ui.resultsContainer.innerHTML = html;
-    ui.exportButton.style.display = 'block';
+        ui.resultsContainer.innerHTML = html;
+        ui.exportButton.style.display = 'block';
 
-    // Setup select all checkbox
-    document.getElementById('selectAll').addEventListener('change', (e) => {
-        document.querySelectorAll('.row-checkbox').forEach(cb => {
-            cb.checked = e.target.checked;
+        // Setup select all checkbox
+        document.getElementById('selectAll').addEventListener('change', (e) => {
+            document.querySelectorAll('.row-checkbox').forEach(cb => {
+                cb.checked = e.target.checked;
+            });
         });
-    });
 
-    // Store extracted references for export
-    window.extractedReferences = extractedRefs;
-}
-
-// Update verification feedback in table
-function updateVerificationFeedback(index, verification) {
-    const feedbackCell = document.getElementById(`feedback-${index}`);
-    if (!feedbackCell) return;
-
-    const feedbackClass = verification.verified ? 'feedback-verified' :
-                         !verification.authorMatch ? 'feedback-error' :
-                         'feedback-warning';
-
-    let icon = '✓';
-    if (!verification.verified) icon = '✗';
-    else if (!verification.authorMatch) icon = '⚠';
-
-    feedbackCell.innerHTML = `<span class="feedback-cell ${feedbackClass}">${icon} ${verification.message}</span>`;
-}
-
-// Export selected references to CSV
-function exportToCSV() {
-    const selectedRefs = [];
-    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
-
-    checkboxes.forEach(cb => {
-        const index = parseInt(cb.dataset.index);
-        const ref = window.extractedReferences[index];
-
-        selectedRefs.push(ref);
-    });
-
-    if (selectedRefs.length === 0) {
-        alert('Please select at least one reference to export.');
-        return;
+        // Store extracted references for export
+        window.extractedReferences = extractedRefs;
     }
 
-    // Create CSV content
-    const headers = ['Title', 'Authors', 'Year', 'DOI', 'URL', 'Extraction Method', 'Verified', 'Verification Message', 'Warnings'];
-    const csvRows = [headers.join(',')];
+    // Update verification feedback in table
+    function updateVerificationFeedback(index, verification) {
+        const feedbackCell = document.getElementById(`feedback-${index}`);
+        if (!feedbackCell) return;
 
-    selectedRefs.forEach(ref => {
-        const verified = ref.verification ? (ref.verification.verified ? 'Yes' : 'No') : 'N/A';
-        const verificationMsg = ref.verification ? ref.verification.message : '';
+        const feedbackClass = verification.verified ? 'feedback-verified' :
+            !verification.authorMatch ? 'feedback-error' :
+                'feedback-warning';
 
-        const row = [
-            `"${ref.title.replace(/"/g, '""')}"`,
-            `"${ref.authors.replace(/"/g, '""')}"`,
-            `"${ref.year}"`,
-            `"${ref.doi}"`,
-            `"${ref.url}"`,
-            `"${ref.extractionMethod}"`,
-            `"${verified}"`,
-            `"${verificationMsg.replace(/"/g, '""')}"`,
-            `"${ref.warnings.join('; ').replace(/"/g, '""')}"`
-        ];
-        csvRows.push(row.join(','));
-    });
+        let icon = '✓';
+        if (!verification.verified) icon = '✗';
+        else if (!verification.authorMatch) icon = '⚠';
 
-    const csvContent = csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'references_export.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-// Process references button with LLM fallback and verification
-ui.processButton.addEventListener('click', async () => {
-    const text = ui.referencesInput.value.trim();
-
-    if (!text) {
-        alert('Please paste references to process.');
-        return;
+        feedbackCell.innerHTML = `<span class="feedback-cell ${feedbackClass}">${icon} ${verification.message}</span>`;
     }
 
-    ui.processButton.disabled = true;
-    ui.processButton.innerHTML = 'Processing...';
-    showProgress();
+    // Export selected references to CSV
+    function exportToCSV() {
+        const selectedRefs = [];
+        const checkboxes = document.querySelectorAll('.row-checkbox:checked');
 
-    const references = parseReferences(text);
-    const extractedRefs = [];
+        checkboxes.forEach(cb => {
+            const index = parseInt(cb.dataset.index);
+            const ref = window.extractedReferences[index];
 
-    // Phase 1: Extract references
-    for (let i = 0; i < references.length; i++) {
-        updateProgress(i + 1, references.length, `Extracting ${i + 1}/${references.length}`);
+            selectedRefs.push(ref);
+        });
 
-        const ref = references[i];
-        let extracted = extractReferenceInfo(ref);
+        if (selectedRefs.length === 0) {
+            alert('Please select at least one reference to export.');
+            return;
+        }
 
-        // If local extraction failed and API key is available, try LLM
-        if ((extracted.warnings.length > 0 || !extracted.title || !extracted.authors) && storage.get('geminiApiKey')) {
-            const llmExtracted = await extractWithLLM(ref);
+        // Create CSV content
+        const headers = ['Title', 'Authors', 'Year', 'DOI', 'URL', 'Extraction Method', 'Verified', 'Verification Message', 'Warnings'];
+        const csvRows = [headers.join(',')];
 
-            if (llmExtracted && (llmExtracted.title || llmExtracted.authors)) {
-                // Merge results, preferring LLM where local failed
-                extracted = {
-                    original: ref,
-                    title: llmExtracted.title || extracted.title,
-                    authors: llmExtracted.authors || extracted.authors,
-                    doi: llmExtracted.doi || extracted.doi,
-                    url: llmExtracted.url || extracted.url,
-                    year: llmExtracted.year || extracted.year,
-                    warnings: [],
-                    extractionMethod: 'llm'
-                };
+        selectedRefs.forEach(ref => {
+            const verified = ref.verification ? (ref.verification.verified ? 'Yes' : 'No') : 'N/A';
+            const verificationMsg = ref.verification ? ref.verification.message : '';
 
-                // Re-validate
-                if (!extracted.title) extracted.warnings.push('Title could not be extracted');
-                if (!extracted.authors) extracted.warnings.push('Authors could not be extracted');
-                if (!extracted.doi && !extracted.url) extracted.warnings.push('No DOI or URL found');
+            const row = [
+                `"${ref.title.replace(/"/g, '""')}"`,
+                `"${ref.authors.replace(/"/g, '""')}"`,
+                `"${ref.year}"`,
+                `"${ref.doi}"`,
+                `"${ref.url}"`,
+                `"${ref.extractionMethod}"`,
+                `"${verified}"`,
+                `"${verificationMsg.replace(/"/g, '""')}"`,
+                `"${ref.warnings.join('; ').replace(/"/g, '""')}"`
+            ];
+            csvRows.push(row.join(','));
+        });
+
+        const csvContent = csvRows.join('\n');
+        const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'references_export.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+
+    // Calculate Levenshtein distance and similarity
+    function levenshteinDistance(str1, str2) {
+        const matrix = Array(str2.length + 1).fill(null).map(() => []);
+        for (let i = 0; i <= str2.length; i++) matrix[i][0] = i;
+        for (let j = 0; j <= str1.length; j++) matrix[0][j] = j;
+
+        for (let i = 1; i <= str2.length; i++) {
+            for (let j = 1; j <= str1.length; j++) {
+                const cost = str2[i - 1] === str1[j - 1] ? 0 : 1;
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j - 1] + cost
+                );
+            }
+        }
+        return matrix[str2.length][str1.length];
+    }
+
+    function calculateSimilarity(str1, str2) {
+        const longer = str1.length > str2.length ? str1 : str2;
+        const shorter = str1.length > str2.length ? str2 : str1;
+        if (longer.length === 0) return 1.0;
+        const editDistance = levenshteinDistance(longer, shorter);
+        return (longer.length - editDistance) / longer.length;
+    }
+
+    // Verify reference using Semantic Scholar before LLM
+    async function verifyReferenceViaSemanticScholar(ref) {
+        const result = {
+            verified: false,
+            authorMatch: true,
+            message: 'Verifying via Semantic Scholar...',
+            confidence: 'low'
+        };
+
+        try {
+            const query = encodeURIComponent(ref.title);
+            const response = await fetch(`https://api.semanticscholar.org/graph/v1/paper/search?query=${query}&limit=1&fields=title,authors,externalIds,url`);
+            if (!response.ok) {
+                result.message = 'Semantic Scholar API unavailable';
+                return result;
+            }
+
+            const data = await response.json();
+            if (!data.data || data.data.length === 0) {
+                result.message = 'Not found in Semantic Scholar';
+                return result;
+            }
+
+            const paper = data.data[0];
+            const titleSim = calculateSimilarity(ref.title.toLowerCase(), paper.title.toLowerCase());
+
+            if (titleSim > 0.6) {
+                result.verified = true;
+                result.confidence = 'high';
+                result.message = '✓ Verified via Semantic Scholar';
+
+                // Compare authors if possible
+                if (ref.authors && paper.authors?.length > 0) {
+                    const scholarAuthors = paper.authors.map(a => a.name).join(', ');
+                    const authorSim = calculateSimilarity(ref.authors.toLowerCase(), scholarAuthors.toLowerCase());
+                    if (authorSim < 0.5) {
+                        result.authorMatch = false;
+                        result.message = '⚠ Author mismatch (Semantic Scholar)';
+                    }
+                }
+
+                // Attach DOI or URL if available
+                if (paper.externalIds?.DOI && !ref.doi) ref.doi = paper.externalIds.DOI;
+                if (paper.url && !ref.url) ref.url = paper.url;
+            } else {
+                result.message = '⚠ Low title similarity';
+            }
+        } catch (err) {
+            console.error('Semantic Scholar verification error:', err);
+            result.message = 'Semantic Scholar verification failed';
+        }
+
+        return result;
+    }
+
+    // Combined verification (Semantic Scholar → Google Scholar → LLM)
+    async function enhancedVerifyReference(ref) {
+        // Try Semantic Scholar first
+        const ssResult = await verifyReferenceViaSemanticScholar(ref);
+        if (ssResult.verified) return ssResult;
+
+        // Add Google Scholar link for manual check
+        ref.googleScholarLink = `https://scholar.google.com/scholar?q=${encodeURIComponent(ref.title)}`;
+
+        // Fallback to LLM verification
+        const llmResult = await verifyReferenceWithLLM(ref);
+        return llmResult;
+    }
+
+    // Process references button with LLM fallback and verification
+    ui.processButton.addEventListener('click', async () => {
+        const text = ui.referencesInput.value.trim();
+
+        if (!text) {
+            alert('Please paste references to process.');
+            return;
+        }
+
+        ui.processButton.disabled = true;
+        ui.processButton.innerHTML = 'Processing...';
+        showProgress();
+
+        const references = parseReferences(text);
+        const extractedRefs = [];
+
+        // Phase 1: Extract references
+        for (let i = 0; i < references.length; i++) {
+            updateProgress(i + 1, references.length, `Extracting ${i + 1}/${references.length}`);
+
+            const ref = references[i];
+            let extracted = extractReferenceInfo(ref);
+
+            // If local extraction failed and API key is available, try LLM
+            if ((extracted.warnings.length > 0 || !extracted.title || !extracted.authors) && storage.get('geminiApiKey')) {
+                const llmExtracted = await extractWithLLM(ref);
+
+                if (llmExtracted && (llmExtracted.title || llmExtracted.authors)) {
+                    // Merge results, preferring LLM where local failed
+                    extracted = {
+                        original: ref,
+                        title: llmExtracted.title || extracted.title,
+                        authors: llmExtracted.authors || extracted.authors,
+                        doi: llmExtracted.doi || extracted.doi,
+                        url: llmExtracted.url || extracted.url,
+                        year: llmExtracted.year || extracted.year,
+                        warnings: [],
+                        extractionMethod: 'llm'
+                    };
+
+                    // Re-validate
+                    if (!extracted.title) extracted.warnings.push('Title could not be extracted');
+                    if (!extracted.authors) extracted.warnings.push('Authors could not be extracted');
+                    if (!extracted.doi && !extracted.url) extracted.warnings.push('No DOI or URL found');
+                }
+            }
+
+            extractedRefs.push(extracted);
+        }
+
+        // Display initial results
+        displayResults(extractedRefs);
+
+        // Phase 2: Verify references (if API key is available)
+        if (storage.get('geminiApiKey')) {
+            for (let i = 0; i < extractedRefs.length; i++) {
+                updateProgress(i + 1, extractedRefs.length, `Verifying ${i + 1}/${extractedRefs.length}`);
+
+                const verification = await enhancedVerifyReference(extractedRefs[i]);
+                extractedRefs[i].verification = verification;
+
+                // Update the feedback cell in real-time
+                updateVerificationFeedback(i, verification);
             }
         }
 
-        extractedRefs.push(extracted);
-    }
+        hideProgress();
 
-    // Display initial results
-    displayResults(extractedRefs);
-
-    // Phase 2: Verify references (if API key is available)
-    if (storage.get('geminiApiKey')) {
-        for (let i = 0; i < extractedRefs.length; i++) {
-            updateProgress(i + 1, extractedRefs.length, `Verifying ${i + 1}/${extractedRefs.length}`);
-
-            const verification = await verifyReferenceWithLLM(extractedRefs[i]);
-            extractedRefs[i].verification = verification;
-
-            // Update the feedback cell in real-time
-            updateVerificationFeedback(i, verification);
-        }
-    }
-
-    hideProgress();
-
-    ui.processButton.disabled = false;
-    ui.processButton.innerHTML = `
+        ui.processButton.disabled = false;
+        ui.processButton.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
             <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
         </svg>
         Process & Verify References
     `;
-});
+    });
 
-// Export button
-ui.exportButton.addEventListener('click', exportToCSV);
+
+    // Export button
+    ui.exportButton.addEventListener('click', exportToCSV);
 </script>
 
 </body>
