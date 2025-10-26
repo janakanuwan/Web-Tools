@@ -216,12 +216,21 @@
             background-color: var(--secondary-color);
         }
 
-        .feedback-input {
-            width: 100%;
-            padding: 6px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 0.9rem;
+        .feedback-cell {
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        .feedback-verified {
+            color: var(--accent-color);
+        }
+
+        .feedback-error {
+            color: var(--danger-color);
+        }
+
+        .feedback-warning {
+            color: #f39c12;
         }
 
         .checkbox-cell {
@@ -315,9 +324,9 @@
         <h2>API Settings (Optional)</h2>
         <div class="api-settings-grid">
             <div>
-                <label for="apiKey">Gemini API Key (for enhanced extraction)</label>
+                <label for="apiKey">Gemini API Key (for enhanced extraction & verification)</label>
                 <input type="password" id="apiKey" placeholder="Enter your Gemini API key">
-                <small class="status-message">Stored locally in your browser. Used as fallback for difficult references.</small>
+                <small class="status-message">Stored locally in your browser. Used for fallback extraction and automatic verification.</small>
             </div>
 
             <div>
@@ -333,11 +342,15 @@
     <!-- References Input -->
     <div class="column">
         <h2>Paste References</h2>
-        <label for="referencesInput">Enter your references (one per line or separated by blank lines)</label>
+        <label for="referencesInput">Enter your references (supports numbered format [1], [2], etc. or blank line separation)</label>
         <textarea id="referencesInput" placeholder="Example:
-Smith, J., & Johnson, A. (2023). Understanding Machine Learning. Journal of AI Research, 45(2), 123-145. https://doi.org/10.1234/example.2023
+[1] Smith, J., & Johnson, A. (2023). Understanding Machine Learning. Journal of AI Research, 45(2), 123-145. https://doi.org/10.1234/example.2023
+[2] Brown, K. (2022). Data Science Fundamentals. Academic Press. http://example.com/paper
 
-Brown, K. (2022). Data Science Fundamentals. Academic Press. http://example.com/paper"></textarea>
+Or without numbers:
+Smith, J., & Johnson, A. (2023). Understanding Machine Learning...
+
+Brown, K. (2022). Data Science Fundamentals..."></textarea>
 
         <div class="progress-container" id="progressContainer">
             <div class="progress-bar" id="progressBar">0%</div>
@@ -347,7 +360,7 @@ Brown, K. (2022). Data Science Fundamentals. Academic Press. http://example.com/
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                 <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
             </svg>
-            Process References
+            Process & Verify References
         </button>
     </div>
 
@@ -399,10 +412,10 @@ ui.apiKeyInput.value = storage.get('geminiApiKey') || '';
 const savedModel = storage.get('geminiModel') || '';
 
 // Update progress bar
-function updateProgress(current, total) {
+function updateProgress(current, total, message = '') {
     const percentage = Math.round((current / total) * 100);
     ui.progressBar.style.width = percentage + '%';
-    ui.progressBar.textContent = `Processing ${current}/${total} (${percentage}%)`;
+    ui.progressBar.textContent = message || `Processing ${current}/${total} (${percentage}%)`;
 }
 
 // Show/hide progress bar
@@ -551,6 +564,80 @@ Example output format:
     }
 }
 
+// Verify reference using LLM
+async function verifyReferenceWithLLM(reference) {
+    const apiKey = storage.get('geminiApiKey');
+    const model = storage.get('geminiModel');
+
+    if (!apiKey || !model) {
+        return {
+            verified: false,
+            message: 'API key not configured for verification'
+        };
+    }
+
+    const prompt = `You are a reference verification assistant. Given this reference, determine if it appears to be a real, published academic work. Check if the title, authors, venue, and DOI/URL seem legitimate.
+
+Reference:
+Title: ${reference.title}
+Authors: ${reference.authors}
+Year: ${reference.year}
+DOI: ${reference.doi}
+URL: ${reference.url}
+
+Respond ONLY with a JSON object in this exact format:
+{
+  "exists": true/false,
+  "confidence": "high"/"medium"/"low",
+  "authorMatch": true/false,
+  "message": "Brief explanation of your findings"
+}
+
+If you cannot verify (e.g., missing information), set exists to false and explain why in the message.`;
+
+    try {
+        const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('LLM verification request failed');
+        }
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        // Extract JSON from response
+        let jsonText = text.trim();
+        if (jsonText.startsWith('```json')) {
+            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        } else if (jsonText.startsWith('```')) {
+            jsonText = jsonText.replace(/```\n?/g, '').trim();
+        }
+
+        const result = JSON.parse(jsonText);
+
+        return {
+            verified: result.exists && result.confidence !== 'low',
+            authorMatch: result.authorMatch !== false,
+            confidence: result.confidence,
+            message: result.message || 'Verification complete'
+        };
+    } catch (error) {
+        console.error('LLM verification error:', error);
+        return {
+            verified: false,
+            message: 'Verification failed: ' + error.message
+        };
+    }
+}
+
 // Enhanced reference extraction with improved logic
 function extractReferenceInfo(reference) {
     const result = {
@@ -660,27 +747,61 @@ function extractReferenceInfo(reference) {
     return result;
 }
 
-// Parse references from input
+// Parse references from input - IMPROVED to handle numbered format AND newlines
 function parseReferences(text) {
     const references = [];
-    const lines = text.split('\n');
-    let currentRef = '';
 
-    for (let line of lines) {
-        line = line.trim();
+    // First, try to detect if it's numbered format like [1], [2], etc.
+    const numberedPattern = /\[\d+\]/;
+    const hasNumberedFormat = numberedPattern.test(text);
 
-        if (line === '') {
-            if (currentRef) {
-                references.push(currentRef.trim());
-                currentRef = '';
+    if (hasNumberedFormat) {
+        // Split by numbered markers
+        const parts = text.split(/\[\d+\]/);
+
+        for (let i = 1; i < parts.length; i++) { // Start from 1 to skip empty first part
+            const ref = parts[i].trim();
+            if (ref.length > 0) {
+                // Remove leading/trailing whitespace and combine multi-line references
+                const cleanedRef = ref.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+                references.push(cleanedRef);
             }
-        } else {
-            currentRef += (currentRef ? ' ' : '') + line;
         }
-    }
+    } else {
+        // Try to detect if each line is a separate reference
+        // Heuristic: if most lines start with a capital letter and are long enough, treat each as a reference
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-    if (currentRef) {
-        references.push(currentRef.trim());
+        const potentialRefs = lines.filter(line =>
+            line.length > 50 && // Reasonable minimum length
+            /^[A-Z]/.test(line) // Starts with capital letter
+        );
+
+        // If most non-empty lines look like references, treat each line as a reference
+        if (potentialRefs.length >= lines.length * 0.7) {
+            return lines;
+        }
+
+        // Otherwise, use blank-line separation (original logic)
+        let currentRef = '';
+        const textLines = text.split('\n');
+
+        for (let line of textLines) {
+            line = line.trim();
+
+            if (line === '') {
+                if (currentRef) {
+                    references.push(currentRef.trim());
+                    currentRef = '';
+                }
+            } else {
+                currentRef += (currentRef ? ' ' : '') + line;
+            }
+        }
+
+        if (currentRef) {
+            references.push(currentRef.trim());
+        }
     }
 
     return references.filter(ref => ref.length > 0);
@@ -711,7 +832,7 @@ function displayResults(extractedRefs) {
                     <th>Authors</th>
                     <th>DOI/URL</th>
                     <th>Google Scholar</th>
-                    <th>Feedback</th>
+                    <th>Auto Verification</th>
                 </tr>
             </thead>
             <tbody>
@@ -737,6 +858,20 @@ function displayResults(extractedRefs) {
             ? `<a href="${scholarUrl}" target="_blank" class="link-button">Search</a>`
             : '—';
 
+        // Verification feedback
+        let feedbackHtml = '<span class="feedback-cell">Verifying...</span>';
+        if (ref.verification) {
+            const feedbackClass = ref.verification.verified ? 'feedback-verified' :
+                                 !ref.verification.authorMatch ? 'feedback-error' :
+                                 'feedback-warning';
+
+            let icon = '✓';
+            if (!ref.verification.verified) icon = '✗';
+            else if (!ref.verification.authorMatch) icon = '⚠';
+
+            feedbackHtml = `<span class="feedback-cell ${feedbackClass}">${icon} ${ref.verification.message}</span>`;
+        }
+
         html += `
             <tr>
                 <td class="checkbox-cell"><input type="checkbox" class="row-checkbox" data-index="${index}"></td>
@@ -745,7 +880,7 @@ function displayResults(extractedRefs) {
                 <td>${ref.authors || '<em>Not extracted</em>'}</td>
                 <td>${doiUrlDisplay}</td>
                 <td>${scholarLink}</td>
-                <td><input type="text" class="feedback-input" data-index="${index}" placeholder="Add notes..."></td>
+                <td id="feedback-${index}">${feedbackHtml}</td>
             </tr>
         `;
 
@@ -779,6 +914,22 @@ function displayResults(extractedRefs) {
     window.extractedReferences = extractedRefs;
 }
 
+// Update verification feedback in table
+function updateVerificationFeedback(index, verification) {
+    const feedbackCell = document.getElementById(`feedback-${index}`);
+    if (!feedbackCell) return;
+
+    const feedbackClass = verification.verified ? 'feedback-verified' :
+                         !verification.authorMatch ? 'feedback-error' :
+                         'feedback-warning';
+
+    let icon = '✓';
+    if (!verification.verified) icon = '✗';
+    else if (!verification.authorMatch) icon = '⚠';
+
+    feedbackCell.innerHTML = `<span class="feedback-cell ${feedbackClass}">${icon} ${verification.message}</span>`;
+}
+
 // Export selected references to CSV
 function exportToCSV() {
     const selectedRefs = [];
@@ -787,13 +938,8 @@ function exportToCSV() {
     checkboxes.forEach(cb => {
         const index = parseInt(cb.dataset.index);
         const ref = window.extractedReferences[index];
-        const feedbackInput = document.querySelector(`.feedback-input[data-index="${index}"]`);
-        const feedback = feedbackInput ? feedbackInput.value : '';
 
-        selectedRefs.push({
-            ...ref,
-            feedback
-        });
+        selectedRefs.push(ref);
     });
 
     if (selectedRefs.length === 0) {
@@ -802,10 +948,13 @@ function exportToCSV() {
     }
 
     // Create CSV content
-    const headers = ['Title', 'Authors', 'Year', 'DOI', 'URL', 'Extraction Method', 'Warnings', 'Feedback'];
+    const headers = ['Title', 'Authors', 'Year', 'DOI', 'URL', 'Extraction Method', 'Verified', 'Verification Message', 'Warnings'];
     const csvRows = [headers.join(',')];
 
     selectedRefs.forEach(ref => {
+        const verified = ref.verification ? (ref.verification.verified ? 'Yes' : 'No') : 'N/A';
+        const verificationMsg = ref.verification ? ref.verification.message : '';
+
         const row = [
             `"${ref.title.replace(/"/g, '""')}"`,
             `"${ref.authors.replace(/"/g, '""')}"`,
@@ -813,8 +962,9 @@ function exportToCSV() {
             `"${ref.doi}"`,
             `"${ref.url}"`,
             `"${ref.extractionMethod}"`,
-            `"${ref.warnings.join('; ').replace(/"/g, '""')}"`,
-            `"${ref.feedback.replace(/"/g, '""')}"`
+            `"${verified}"`,
+            `"${verificationMsg.replace(/"/g, '""')}"`,
+            `"${ref.warnings.join('; ').replace(/"/g, '""')}"`
         ];
         csvRows.push(row.join(','));
     });
@@ -831,7 +981,7 @@ function exportToCSV() {
     URL.revokeObjectURL(url);
 }
 
-// Process references button with LLM fallback
+// Process references button with LLM fallback and verification
 ui.processButton.addEventListener('click', async () => {
     const text = ui.referencesInput.value.trim();
 
@@ -847,8 +997,9 @@ ui.processButton.addEventListener('click', async () => {
     const references = parseReferences(text);
     const extractedRefs = [];
 
+    // Phase 1: Extract references
     for (let i = 0; i < references.length; i++) {
-        updateProgress(i + 1, references.length);
+        updateProgress(i + 1, references.length, `Extracting ${i + 1}/${references.length}`);
 
         const ref = references[i];
         let extracted = extractReferenceInfo(ref);
@@ -880,7 +1031,22 @@ ui.processButton.addEventListener('click', async () => {
         extractedRefs.push(extracted);
     }
 
+    // Display initial results
     displayResults(extractedRefs);
+
+    // Phase 2: Verify references (if API key is available)
+    if (storage.get('geminiApiKey')) {
+        for (let i = 0; i < extractedRefs.length; i++) {
+            updateProgress(i + 1, extractedRefs.length, `Verifying ${i + 1}/${extractedRefs.length}`);
+
+            const verification = await verifyReferenceWithLLM(extractedRefs[i]);
+            extractedRefs[i].verification = verification;
+
+            // Update the feedback cell in real-time
+            updateVerificationFeedback(i, verification);
+        }
+    }
+
     hideProgress();
 
     ui.processButton.disabled = false;
@@ -888,7 +1054,7 @@ ui.processButton.addEventListener('click', async () => {
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
             <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
         </svg>
-        Process References
+        Process & Verify References
     `;
 });
 
