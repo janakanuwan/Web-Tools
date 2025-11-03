@@ -328,6 +328,226 @@
                 padding: 8px;
             }
         }
+
+        /* Verification Result Styles */
+        .verification-result {
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .verification-result.feedback-verified {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+
+        .verification-result.feedback-warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+
+        .verification-result.feedback-error {
+            background-color: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+
+        /* Status Line */
+        .verification-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .status-icon {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .status-message {
+            font-weight: 500;
+            flex: 1;
+        }
+
+        /* Source Badge */
+        .verification-source {
+            margin-bottom: 8px;
+        }
+
+        .source-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .source-doi {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .source-crossref {
+            background-color: #17a2b8;
+            color: white;
+        }
+
+        .source-semantic {
+            background-color: #6f42c1;
+            color: white;
+        }
+
+        .source-openalex {
+            background-color: #fd7e14;
+            color: white;
+        }
+
+        .source-google {
+            background-color: #e83e8c;
+            color: white;
+        }
+
+        .source-llm {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .source-default {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        /* Confidence Badge */
+        .verification-confidence {
+            margin-bottom: 8px;
+        }
+
+        .confidence-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .confidence-high {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .confidence-medium {
+            background-color: #ffc107;
+            color: #000;
+        }
+
+        .confidence-low {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        /* Details Section */
+        .verification-details {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .detail-row {
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .detail-row.mismatch {
+            color: #856404;
+        }
+
+        .detail-row.match {
+            color: #155724;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            margin-right: 6px;
+        }
+
+        .detail-value {
+            color: inherit;
+        }
+
+        .canonical-link {
+            color: #007bff;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .canonical-link:hover {
+            text-decoration: underline;
+        }
+
+        .external-icon {
+            font-size: 12px;
+            margin-left: 4px;
+        }
+
+        /* Warning */
+        .verification-warning {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: rgba(255, 193, 7, 0.2);
+            border-radius: 4px;
+            font-size: 12px;
+            color: #856404;
+        }
+
+        /* Cache Indicator */
+        .cache-indicator {
+            margin-top: 8px;
+        }
+
+        .cache-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            background-color: #e7f3ff;
+            color: #004085;
+        }
+
+        /* Manual Verification */
+        .manual-verification {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .manual-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .manual-link:hover {
+            background-color: #0056b3;
+            text-decoration: none;
+        }
+
+        /* Compact view for table cells */
+        .feedback-cell {
+            display: block;
+            width: 100%;
+        }
+
     </style>
 </head>
 <body>
@@ -434,6 +654,8 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
         apiGenerateUrl: (apiKey, model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
     };
 
+    const GOOGLE_SCHOLAR_API = 'https://scholar.google.com/scholar?hl=en&q=';
+
     // Initialize
     ui.apiKeyInput.value = storage.get('geminiApiKey') || '';
     const savedModel = storage.get('geminiModel') || '';
@@ -534,6 +756,60 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
         storage.set('geminiModel', ui.modelSelect.value);
     });
 
+    class VerificationCache {
+        constructor(ttl = 3600000) { // 1 hour default
+            this.cache = new Map();
+            this.ttl = ttl;
+        }
+
+        key(ref) {
+            return `${ref.doi || ref.title}-${ref.authors}-${ref.year}`;
+        }
+
+        get(ref) {
+            const entry = this.cache.get(this.key(ref));
+            if (!entry) return null;
+            if (Date.now() - entry.timestamp > this.ttl) {
+                this.cache.delete(this.key(ref));
+                return null;
+            }
+            return entry.data;
+        }
+
+        set(ref, data) {
+            this.cache.set(this.key(ref), {
+                data,
+                timestamp: Date.now()
+            });
+        }
+    }
+
+    const verificationCache = new VerificationCache();
+
+    // Rate Limiter Class
+    class RateLimiter {
+        constructor(delay = 1000) {
+            this.delay = delay;
+            this.lastRequest = 0;
+        }
+
+        async throttle() {
+            const now = Date.now();
+            const timeSinceLastRequest = now - this.lastRequest;
+
+            if (timeSinceLastRequest < this.delay) {
+                await new Promise(resolve =>
+                    setTimeout(resolve, this.delay - timeSinceLastRequest)
+                );
+            }
+
+            this.lastRequest = Date.now();
+        }
+    }
+
+    const rateLimiter = new RateLimiter();
+
+
     // LLM extraction function
     async function extractWithLLM(reference) {
         const apiKey = storage.get('geminiApiKey');
@@ -591,99 +867,6 @@ Example output format:
         }
     }
 
-    // Verify reference using LLM
-    async function verifyReferenceWithLLM(reference) {
-        const apiKey = storage.get('geminiApiKey');
-        const model = storage.get('geminiModel');
-
-        if (!apiKey || !model) {
-            return {
-                verified: false,
-                message: 'API key not configured for verification'
-            };
-        }
-
-        const prompt = `You are a highly accurate academic reference verification assistant. Your task is to verify if a given reference corresponds to a real, published academic work.
-
-You MUST use your web search tool to find the work online.
-
-Reference to Verify:
-Title: '${reference.title}'
-Authors: '${reference.authors}'
-Year: '${reference.year}'
-DOI: '${reference.doi}'
-URL: '${reference.url}'
-
-Follow these steps precisely:
-1.  **Search:** First, try to resolve the DOI (if provided). If no DOI, try the URL (if provided). If neither is provided or they fail, search for the paper by its 'Title' and 'Authors'.
-2.  **Analyze Findings:**
-    * **If NOT found:** If you cannot find any strong evidence of a published paper with this title or DOI, set "exists" to false, "confidence" to "high", and explain why in the "message".  If the title does not match with given title, set "exists" to false.
-    * **If found:** If you find a matching academic paper, set "exists" to true.
-3.  **Compare Details (if found):**
-    * Compare the found (canonical) data against the provided reference.
-    * **foundTitle:** Record the exact title you found.
-    * **foundAuthors:** Record the authors as listed on the found publication.
-    * **authorMatch:** Set to 'true' if the provided authors are a substantial match for the found authors. Be robust to abbreviations (e.g., 'J. Smith' vs 'John Smith') or 'et al.' usage. Set to 'false' only if there is a clear mismatch (e.g., different lead author).
-    * **yearMatch:** Set to 'true' if the provided 'Year' matches the publication year you found. (Allow a +/- 1 year difference for pre-prints vs. final versions).
-    * **canonicalUrl:** Record the DOI link (e.g., "https://doi.org/...") or the best URL you found for the paper.
-    * **confidence:** Set to 'high' if the DOI/Title/Authors all match. Set to 'medium' if the title matches but authors or year are slightly different. Set to 'low' if you found a paper but are very unsure it's the same one.
-    * **message:** Briefly explain your findings. Note any discrepancies (e.g., "Paper found via title, but provided year was 2020 and actual was 2021.").
-
-Respond ONLY with a JSON object in this exact format. Do not add any other text, markdown formatting, or explanations outside the JSON.
-{
-  "exists": true/false,
-  "confidence": "high" | "medium" | "low",
-  "authorMatch": true/false,
-  "yearMatch": true/false,
-  "foundTitle": "The canonical title you found",
-  "foundAuthors": "The canonical authors you found (e.g., 'Smith, J.; Doe, A.')",
-  "canonicalUrl": "The DOI link or best URL you found",
-  "message": "Brief explanation of findings and any discrepancies."
-}
-`;
-
-        try {
-            const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{text: prompt}]
-                    }]
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error('LLM verification request failed');
-            }
-
-            const data = await response.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-            // Extract JSON from response
-            let jsonText = text.trim();
-            if (jsonText.startsWith('```json')) {
-                jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            } else if (jsonText.startsWith('```')) {
-                jsonText = jsonText.replace(/```\n?/g, '').trim();
-            }
-
-            const result = JSON.parse(jsonText);
-
-            return {
-                verified: result.exists && result.confidence !== 'low',
-                authorMatch: result.authorMatch !== false,
-                confidence: result.confidence,
-                message: result.message || 'Verification complete'
-            };
-        } catch (error) {
-            console.error('LLM verification error:', error);
-            return {
-                verified: false,
-                message: 'Verification failed: ' + error.message
-            };
-        }
-    }
 
     // Enhanced reference extraction with improved logic
     function extractReferenceInfo(reference) {
@@ -858,7 +1041,7 @@ Respond ONLY with a JSON object in this exact format. Do not add any other text,
     function getGoogleScholarUrl(title) {
         if (!title) return '';
         const query = encodeURIComponent(title);
-        return `https://scholar.google.com/scholar?q=${query}`;
+        return `${GOOGLE_SCHOLAR_API}${query}`;
     }
 
     // Display results in table
@@ -966,15 +1149,188 @@ Respond ONLY with a JSON object in this exact format. Do not add any other text,
         const feedbackCell = document.getElementById(`feedback-${index}`);
         if (!feedbackCell) return;
 
-        const feedbackClass = verification.verified ? 'feedback-verified' :
-            !verification.authorMatch ? 'feedback-error' :
-                'feedback-warning';
+        // Determine status and styling
+        let status = 'unverified';
+        let icon = '✗';
+        let feedbackClass = 'feedback-error';
 
-        let icon = '✓';
-        if (!verification.verified) icon = '✗';
-        else if (!verification.authorMatch) icon = '⚠';
+        if (verification.verified) {
+            if (verification.confidence === 'high') {
+                status = 'verified';
+                icon = '✓';
+                feedbackClass = 'feedback-verified';
+            } else if (verification.confidence === 'medium') {
+                status = 'partial';
+                icon = '⚠';
+                feedbackClass = 'feedback-warning';
+            } else {
+                status = 'low-confidence';
+                icon = '⚠';
+                feedbackClass = 'feedback-warning';
+            }
 
-        feedbackCell.innerHTML = `<span class="feedback-cell ${feedbackClass}">${icon} ${verification.message}</span>`;
+            // Override if author mismatch
+            if (verification.authorMatch === false) {
+                icon = '⚠';
+                feedbackClass = 'feedback-warning';
+                status = 'author-mismatch';
+            }
+
+            // Override if year mismatch
+            if (verification.yearMatch === false) {
+                icon = '⚠';
+                feedbackClass = 'feedback-warning';
+                status = 'year-mismatch';
+            }
+        }
+
+        // Build the feedback HTML
+        let feedbackHTML = `<div class="verification-result ${feedbackClass}">`;
+
+        // Main status line with icon and message
+        feedbackHTML += `
+            <div class="verification-status">
+                <span class="status-icon">${icon}</span>
+                <span class="status-message">${verification.message}</span>
+            </div>
+        `;
+
+        // Add source badge
+        if (verification.source) {
+            const sourceClass = getSourceBadgeClass(verification.source);
+            feedbackHTML += `
+                <div class="verification-source">
+                    <span class="source-badge ${sourceClass}">${verification.source}</span>
+                </div>
+            `;
+        }
+
+        // Add confidence indicator for verified results
+        if (verification.verified && verification.confidence) {
+            const confidenceClass = `confidence-${verification.confidence}`;
+            const confidenceText = verification.confidence.charAt(0).toUpperCase() + verification.confidence.slice(1);
+            feedbackHTML += `
+                <div class="verification-confidence">
+                    <span class="confidence-badge ${confidenceClass}">${confidenceText} Confidence</span>
+                </div>
+            `;
+        }
+
+        // Add detailed comparison if available
+        if (verification.verified && (verification.foundTitle || verification.foundAuthors)) {
+            feedbackHTML += `<div class="verification-details">`;
+
+            if (verification.foundTitle) {
+                feedbackHTML += `
+                    <div class="detail-row">
+                        <span class="detail-label">Found Title:</span>
+                        <span class="detail-value">${escapeHtml(verification.foundTitle)}</span>
+                    </div>
+                `;
+            }
+
+            if (verification.foundAuthors) {
+                const authorIcon = verification.authorMatch === false ? '⚠' : '✓';
+                const authorClass = verification.authorMatch === false ? 'mismatch' : 'match';
+                feedbackHTML += `
+                    <div class="detail-row ${authorClass}">
+                        <span class="detail-label">Found Authors:</span>
+                        <span class="detail-value">${authorIcon} ${escapeHtml(verification.foundAuthors)}</span>
+                    </div>
+                `;
+            }
+
+            if (verification.canonicalUrl) {
+                feedbackHTML += `
+                    <div class="detail-row">
+                        <span class="detail-label">Canonical URL:</span>
+                        <a href="${escapeHtml(verification.canonicalUrl)}" target="_blank" rel="noopener noreferrer" class="canonical-link">
+                            ${truncateUrl(verification.canonicalUrl)}
+                            <span class="external-icon">↗</span>
+                        </a>
+                    </div>
+                `;
+            }
+
+            feedbackHTML += `</div>`;
+        }
+
+        // Add warnings if present
+        if (verification.warning) {
+            feedbackHTML += `
+                <div class="verification-warning">
+                    ${verification.warning}
+                </div>
+            `;
+        }
+
+        // Add cache indicator
+        if (verification.fromCache) {
+            feedbackHTML += `
+                <div class="cache-indicator">
+                    <span class="cache-badge">📦 Cached</span>
+                </div>
+            `;
+        }
+
+        // Add manual verification link for unverified or low-confidence results
+        if (!verification.verified || verification.confidence === 'low') {
+            if (verification.url) {
+                feedbackHTML += `
+                    <div class="manual-verification">
+                        <a href="${escapeHtml(verification.url)}" target="_blank" rel="noopener noreferrer" class="manual-link">
+                            🔍 Search on Google Scholar
+                        </a>
+                    </div>
+                `;
+            }
+        }
+
+        feedbackHTML += `</div>`;
+
+        feedbackCell.innerHTML = feedbackHTML;
+    }
+
+    // Helper function to get source badge class
+    function getSourceBadgeClass(source) {
+        const sourceMap = {
+            'DOI': 'source-doi',
+            'DOI + CrossRef': 'source-doi',
+            'DOI.org': 'source-doi',
+            'CrossRef': 'source-crossref',
+            'CrossRef DOI': 'source-crossref',
+            'Semantic Scholar': 'source-semantic',
+            'OpenAlex': 'source-openalex',
+            'Google Scholar': 'source-google',
+            'LLM (Gemini)': 'source-llm',
+            'LLM': 'source-llm'
+        };
+        return sourceMap[source] || 'source-default';
+    }
+
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Helper function to truncate long URLs
+    function truncateUrl(url, maxLength = 50) {
+        if (url.length <= maxLength) return url;
+
+        try {
+            const urlObj = new URL(url);
+            const domain = urlObj.hostname;
+            const path = urlObj.pathname + urlObj.search;
+
+            if (path.length > maxLength - domain.length - 10) {
+                return domain + path.substring(0, maxLength - domain.length - 13) + '...';
+            }
+            return domain + path;
+        } catch {
+            return url.substring(0, maxLength - 3) + '...';
+        }
     }
 
     // Export selected references to CSV
@@ -1049,11 +1405,240 @@ Respond ONLY with a JSON object in this exact format. Do not add any other text,
     }
 
     function calculateSimilarity(str1, str2) {
+        if (!str1 || !str2) return 0;
+
         const longer = str1.length > str2.length ? str1 : str2;
         const shorter = str1.length > str2.length ? str2 : str1;
+
         if (longer.length === 0) return 1.0;
+
         const editDistance = levenshteinDistance(longer, shorter);
         return (longer.length - editDistance) / longer.length;
+    }
+
+    function getBigrams(str) {
+        const bigrams = new Set();
+        for (let i = 0; i < str.length - 1; i++) {
+            bigrams.add(str.substring(i, i + 2));
+        }
+        return bigrams;
+    }
+
+    // Add this function to verify DOI directly
+    async function verifyReferenceViaDOI(ref) {
+        if (!ref.doi) {
+            return {verified: false, message: 'No DOI provided'};
+        }
+
+        try {
+            // Normalize DOI
+            const doi = ref.doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//, '');
+
+            // Try DOI.org resolution first
+            const doiUrl = `https://doi.org/${doi}`;
+            const response = await fetch(doiUrl, {
+                method: 'HEAD',
+                redirect: 'manual' // Don't follow redirects
+            });
+
+            if (response.status === 302 || response.status === 301) {
+                // DOI resolves successfully
+                return {
+                    verified: true,
+                    confidence: 'high',
+                    authorMatch: true, // Assume true since DOI is unique
+                    message: '✓ DOI resolves successfully',
+                    canonicalUrl: doiUrl,
+                    source: 'DOI.org'
+                };
+            }
+
+            // Try CrossRef API as fallback
+            const crossRefUrl = `https://api.crossref.org/works/${doi}`;
+            const crossRefResponse = await fetch(crossRefUrl);
+
+            if (crossRefResponse.ok) {
+                const data = await crossRefResponse.json();
+                const work = data.message;
+
+                return {
+                    verified: true,
+                    confidence: 'high',
+                    authorMatch: true,
+                    message: '✓ Verified DOI via CrossRef DOI lookup',
+                    foundTitle: work.title?.[0] || '',
+                    foundAuthors: work.author?.map(a => `${a.family}, ${a.given}`).join('; ') || '',
+                    canonicalUrl: doiUrl,
+                    source: 'CrossRef DOI'
+                };
+            }
+
+            return {verified: false, message: 'DOI not found'};
+
+        } catch (error) {
+            console.error('DOI verification error:', error);
+            return {verified: false, message: 'DOI verification failed'};
+        }
+    }
+
+    // CrossRef API verification
+    async function verifyReferenceViaCrossRef(ref) {
+        try {
+            // CrossRef API endpoint for works search
+            const baseUrl = 'https://api.crossref.org/works';
+
+            // Build query parameters
+            let query = '';
+
+            // Priority 1: Search by DOI if available
+            if (ref.doi) {
+                const doi = ref.doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//, '');
+                const doiUrl = `${baseUrl}/${encodeURIComponent(doi)}`;
+
+                try {
+                    const response = await fetch(doiUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const work = data.message;
+
+                        return {
+                            verified: true,
+                            confidence: 'high',
+                            authorMatch: true,
+                            yearMatch: work.published?.['date-parts']?.[0]?.[0] == ref.year,
+                            foundTitle: work.title?.[0] || '',
+                            foundAuthors: work.author?.map(a =>
+                                `${a.family}${a.given ? ', ' + a.given : ''}`
+                            ).join('; ') || '',
+                            canonicalUrl: `https://doi.org/${work.DOI}`,
+                            message: '✓ Verified via CrossRef DOI',
+                            source: 'CrossRef'
+                        };
+                    }
+                } catch (error) {
+                    console.log('DOI lookup failed, trying title search...');
+                }
+            }
+
+            // Priority 2: Search by title
+            if (ref.title) {
+                query = `query.title=${encodeURIComponent(ref.title)}`;
+
+                // Add author filter if available
+                if (ref.authors) {
+                    const firstAuthor = ref.authors.split(',')[0].split(';')[0].trim();
+                    query += `&query.author=${encodeURIComponent(firstAuthor)}`;
+                }
+
+                // Add year filter if available
+                if (ref.year) {
+                    query += `&filter=from-pub-date:${ref.year},until-pub-date:${ref.year}`;
+                }
+
+                // Limit to top result and sort by relevance
+                query += '&rows=1&sort=relevance';
+
+                const searchUrl = `${baseUrl}?${query}`;
+                const response = await fetch(searchUrl, {
+                    headers: {
+                        'User-Agent': 'AcademicReferenceVerifier/1.0 (mailto:nuwanj.nus@gmail.com)'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`CrossRef API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.message.items || data.message.items.length === 0) {
+                    return {
+                        verified: false,
+                        message: 'Not found in CrossRef',
+                        source: 'CrossRef'
+                    };
+                }
+
+                const work = data.message.items[0];
+
+                // Calculate title similarity
+                const foundTitle = work.title?.[0] || '';
+                const titleSim = calculateSimilarity(
+                    ref.title.toLowerCase(),
+                    foundTitle.toLowerCase()
+                );
+
+                // Verify only if title similarity is high enough
+                if (titleSim < 0.6) {
+                    return {
+                        verified: false,
+                        message: `Low title similarity (${Math.round(titleSim * 100)}%)`,
+                        source: 'CrossRef'
+                    };
+                }
+
+                // Extract and compare authors
+                const foundAuthors = work.author?.map(a =>
+                    `${a.family}${a.given ? ', ' + a.given : ''}`
+                ).join('; ') || '';
+
+                let authorMatch = true;
+                if (ref.authors && foundAuthors) {
+                    const authorSim = calculateSimilarity(
+                        ref.authors.toLowerCase(),
+                        foundAuthors.toLowerCase()
+                    );
+                    authorMatch = authorSim > 0.5; // 50% threshold for authors
+                }
+
+                // Extract and compare year
+                const foundYear = work.published?.['date-parts']?.[0]?.[0];
+                const yearMatch = !ref.year || !foundYear ||
+                    Math.abs(parseInt(ref.year) - foundYear) <= 1;
+
+                // Determine confidence level
+                let confidence = 'low';
+                if (titleSim > 0.9 && authorMatch && yearMatch) {
+                    confidence = 'high';
+                } else if (titleSim > 0.75 && (authorMatch || yearMatch)) {
+                    confidence = 'medium';
+                }
+
+                // Update reference with found DOI if not present
+                if (work.DOI && !ref.doi) {
+                    ref.doi = work.DOI;
+                }
+
+                return {
+                    verified: titleSim > 0.6,
+                    confidence: confidence,
+                    authorMatch: authorMatch,
+                    yearMatch: yearMatch,
+                    foundTitle: foundTitle,
+                    foundAuthors: foundAuthors,
+                    canonicalUrl: work.DOI ? `https://doi.org/${work.DOI}` : work.URL,
+                    message: confidence === 'high'
+                        ? '✓ Verified via CrossRef'
+                        : `⚠ Partial match in CrossRef (${Math.round(titleSim * 100)}% title similarity)`,
+                    source: 'CrossRef',
+                    score: work.score // CrossRef relevance score
+                };
+            }
+
+            return {
+                verified: false,
+                message: 'Insufficient data for CrossRef search',
+                source: 'CrossRef'
+            };
+
+        } catch (error) {
+            console.error('CrossRef verification error:', error);
+            return {
+                verified: false,
+                message: `CrossRef error: ${error.message}`,
+                source: 'CrossRef'
+            };
+        }
     }
 
     // Verify reference using Semantic Scholar before LLM
@@ -1062,7 +1647,8 @@ Respond ONLY with a JSON object in this exact format. Do not add any other text,
             verified: false,
             authorMatch: true,
             message: 'Verifying via Semantic Scholar...',
-            confidence: 'low'
+            confidence: 'low',
+            source: 'Semantic Scholar'
         };
 
         try {
@@ -1079,29 +1665,55 @@ Respond ONLY with a JSON object in this exact format. Do not add any other text,
                 return result;
             }
 
-            const paper = data.data[0];
-            const titleSim = calculateSimilarity(ref.title.toLowerCase(), paper.title.toLowerCase());
+            // Check top 3 results for best match
+            let bestMatch = null;
+            let bestSimilarity = 0;
 
-            if (titleSim > 0.6) {
-                result.verified = true;
-                result.confidence = 'high';
-                result.message = '✓ Verified via Semantic Scholar';
+            for (const paper of data.data) {
+                const titleSim = calculateSimilarity(
+                    ref.title.toLowerCase(),
+                    paper.title.toLowerCase()
+                );
 
-                // Compare authors if possible
-                if (ref.authors && paper.authors?.length > 0) {
-                    const scholarAuthors = paper.authors.map(a => a.name).join(', ');
-                    const authorSim = calculateSimilarity(ref.authors.toLowerCase(), scholarAuthors.toLowerCase());
-                    if (authorSim < 0.5) {
-                        result.authorMatch = false;
-                        result.message = '⚠ Author mismatch (Semantic Scholar)';
-                    }
+                if (titleSim > bestSimilarity) {
+                    bestSimilarity = titleSim;
+                    bestMatch = paper;
+                }
+            }
+
+            if (bestSimilarity > 0.6 && bestMatch) {
+                const authors = bestMatch.authors?.map(a => a.name).join(', ') || '';
+
+                let authorMatch = true;
+                if (ref.authors && authors) {
+                    const authorSim = calculateSimilarity(
+                        ref.authors.toLowerCase(),
+                        authors.toLowerCase()
+                    );
+                    authorMatch = authorSim > 0.5;
                 }
 
-                // Attach DOI or URL if available
-                if (paper.externalIds?.DOI && !ref.doi) ref.doi = paper.externalIds.DOI;
-                if (paper.url && !ref.url) ref.url = paper.url;
+                result.verified = true;
+                result.confidence = bestSimilarity > 0.9 ? 'high' : bestSimilarity > 0.75 ? 'medium' : 'low';
+                result.authorMatch = authorMatch;
+                result.foundTitle = bestMatch.title;
+                result.foundAuthors = authors;
+                result.canonicalUrl = bestMatch.externalIds?.DOI
+                    ? `https://doi.org/${bestMatch.externalIds.DOI}`
+                    : bestMatch.url;
+                result.message = authorMatch
+                    ? '✓ Verified via Semantic Scholar'
+                    : '⚠ Verified but author mismatch (Semantic Scholar)';
+
+                // Enrich reference data
+                if (bestMatch.externalIds?.DOI && !ref.doi) {
+                    ref.doi = bestMatch.externalIds.DOI;
+                }
+                if (bestMatch.year && !ref.year) {
+                    ref.year = bestMatch.year;
+                }
             } else {
-                result.message = '⚠ Low title similarity';
+                result.message = '⚠ Low title similarity in Semantic Scholar';
             }
         } catch (err) {
             console.error('Semantic Scholar verification error:', err);
@@ -1111,18 +1723,334 @@ Respond ONLY with a JSON object in this exact format. Do not add any other text,
         return result;
     }
 
-    // Combined verification (Semantic Scholar → Google Scholar → LLM)
+    async function verifyReferenceViaOpenAlex(ref) {
+        try {
+            const query = encodeURIComponent(ref.title);
+            const url = `https://api.openalex.org/works?search=${query}&select=id,title,authorships,publication_year,doi,primary_location&mailto=nuwanj.nus@gmail.com`;
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                return {verified: false, message: 'OpenAlex API unavailable'};
+            }
+
+            const data = await response.json();
+            if (!data.results || data.results.length === 0) {
+                return {verified: false, message: 'Not found in OpenAlex'};
+            }
+
+            const work = data.results[0];
+            const titleSim = calculateSimilarity(
+                ref.title.toLowerCase(),
+                work.title.toLowerCase()
+            );
+
+            if (titleSim > 0.6) {
+                const authors = work.authorships
+                    ?.map(a => a.author.display_name)
+                    .join(', ') || '';
+
+                const authorSim = ref.authors
+                    ? calculateSimilarity(ref.authors.toLowerCase(), authors.toLowerCase())
+                    : 1.0;
+
+                return {
+                    verified: true,
+                    confidence: titleSim > 0.9 ? 'high' : 'medium',
+                    authorMatch: authorSim > 0.5,
+                    message: '✓ Verified via OpenAlex',
+                    foundTitle: work.title,
+                    foundAuthors: authors,
+                    canonicalUrl: work.doi || work.primary_location?.landing_page_url,
+                    source: 'OpenAlex'
+                };
+            }
+
+            return {verified: false, message: 'Low title similarity in OpenAlex'};
+
+        } catch (error) {
+            console.error('OpenAlex verification error:', error);
+            return {verified: false, message: 'OpenAlex verification failed'};
+        }
+    }
+
+    async function verifyReferenceViaGoogleScholar(reference) {
+        try {
+            // Construct search query from reference
+            let searchQuery = reference.title || '';
+            if (reference.authors && reference.authors.length > 0) {
+                searchQuery += ' ' + reference.authors[0];
+            }
+            if (reference.year) {
+                searchQuery += ' ' + reference.year;
+            }
+
+            const scholarUrl = getGoogleScholarUrl(searchQuery.trim());
+
+            // Use CORS proxy
+            const corsProxy = 'https://api.codetabs.com/v1/proxy?quest=';
+            const searchUrl = corsProxy + encodeURIComponent(scholarUrl);
+
+            // Try to fetch the page
+            const response = await fetch(searchUrl, {
+                headers: {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Google Scholar request failed');
+            }
+
+            const html = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // Extract first result
+            const firstResult = doc.querySelector('div.gs_ri');
+            if (!firstResult) {
+                return {verified: false, source: 'Google Scholar', error: 'No results found'};
+            }
+
+            // Extract title
+            const titleElement = firstResult.querySelector('h3.gs_rt');
+            const titleLink = titleElement?.querySelector('a');
+            const title = titleLink?.textContent?.trim() || titleElement?.textContent?.trim() || '';
+
+            // Extract authors and year from citation data
+            const citationData = firstResult.querySelector('div.gs_a');
+            const citationText = citationData?.textContent || '';
+
+            const authors = citationText.split('-')[0]?.trim() || '';
+            const yearMatch = citationText.match(/\b(19|20)\d{2}\b/);
+            const year = yearMatch ? yearMatch[0] : '';
+
+            // Extract URL
+            const url = titleLink?.href || '';
+
+            const titleSimilarity = calculateSimilarity(
+                reference.title?.toLowerCase() || '',
+                title.toLowerCase()
+            );
+
+            const verified = titleSimilarity > 0.6;
+
+            const authorSimilarity = calculateSimilarity(
+                reference.authors?.toLowerCase() || '',
+                authors.toLowerCase()
+            );
+
+            const authorMatch = authorSimilarity > 0.6;
+            const confidence = titleSimilarity > 0.9 ? 'high' : titleSimilarity > 0.7 ? 'medium' : 'low';
+
+            return {
+                verified,
+                authorMatch,
+                confidence,
+                foundTitle: title,
+                foundAuthors: authors,
+                canonicalUrl: url,
+                message: verified
+                    ? `⚠ Verified via Google Scholar (scraping - may be unreliable)`
+                    : 'Not verified in Google Scholar',
+                warning: '⚠ Google Scholar data may be unreliable due to HTML parsing. Use with caution.',
+                source: 'Google Scholar'
+            };
+
+        } catch (error) {
+            console.error('Google Scholar verification error:', error);
+            return {
+                verified: false,
+                source: 'Google Scholar',
+                message: error.message,
+                warning: 'Failed to verify via Google Scholar'
+            };
+        }
+    }
+
+    // Verify reference using LLM
+    async function verifyReferenceWithLLM(reference) {
+        const apiKey = storage.get('geminiApiKey');
+        const model = storage.get('geminiModel');
+
+        const manualSearchUrl = getGoogleScholarUrl(reference.title)
+
+        if (!apiKey || !model) {
+            return {
+                verified: false,
+                message: 'API key not configured for verification',
+                source: 'LLM',
+                url: manualSearchUrl,
+            };
+        }
+
+        const prompt = `You are a highly accurate academic reference verification assistant. Your task is to verify if a given reference corresponds to a real, published academic work.
+
+You MUST use your web search tool to find the work online.
+
+Reference to Verify:
+Title: '${reference.title}'
+Authors: '${reference.authors}'
+Year: '${reference.year}'
+DOI: '${reference.doi}'
+URL: '${reference.url}'
+
+Follow these steps precisely:
+1.  **Search:** First, try to resolve the DOI (if provided). If no DOI, try the URL (if provided). If neither is provided or they fail, search for the paper by its 'Title' and 'Authors'.
+2.  **Analyze Findings:**
+    * **If NOT found:** If you cannot find any strong evidence of a published paper with this title or DOI, set "exists" to false, "confidence" to "high", and explain why in the "message".  If the title does not match with given title, set "exists" to false.
+    * **If found:** If you find a matching academic paper, set "exists" to true.
+3.  **Compare Details (if found):**
+    * Compare the found (canonical) data against the provided reference.
+    * **foundTitle:** Record the exact title you found.
+    * **foundAuthors:** Record the authors as listed on the found publication.
+    * **authorMatch:** Set to 'true' if the provided authors are a substantial match for the found authors. Be robust to abbreviations (e.g., 'J. Smith' vs 'John Smith') or 'et al.' usage. Set to 'false' only if there is a clear mismatch (e.g., different lead author).
+    * **yearMatch:** Set to 'true' if the provided 'Year' matches the publication year you found. (Allow a +/- 1 year difference for pre-prints vs. final versions).
+    * **canonicalUrl:** Record the DOI link (e.g., "https://doi.org/...") or the best URL you found for the paper.
+    * **confidence:** Set to 'high' if the DOI/Title/Authors all match. Set to 'medium' if the title matches but authors or year are slightly different. Set to 'low' if you found a paper but are very unsure it's the same one.
+    * **message:** Briefly explain your findings. Note any discrepancies (e.g., "Paper found via title, but provided year was 2020 and actual was 2021.").
+
+CRITICAL: Your response MUST be ONLY valid JSON. No markdown, no explanations, no code blocks.
+Start your response with { and end with }. Nothing else.
+
+Respond ONLY with a JSON object in this exact format:
+{"exists":true,"confidence":"high","authorMatch":true,"yearMatch":true,"foundTitle":"...","foundAuthors":"...","canonicalUrl":"...","message":"..."}
+`;
+
+        try {
+            const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{text: prompt}]
+                    }],
+                    generationConfig: {
+                        temperature: 0,  // Deterministic output
+                        topK: 1,
+                        topP: 1,
+                        maxOutputTokens: 1024,
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`API error: ${errorData.error?.message || 'Unknown error'}`);
+            }
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+            // Extract JSON from response
+            let jsonText = text.trim();
+            if (jsonText.startsWith('```json')) {
+                jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            } else if (jsonText.startsWith('```')) {
+                jsonText = jsonText.replace(/```\n?/g, '').trim();
+            }
+
+            const result = JSON.parse(jsonText);
+
+            const llm_confidence = result.exists ? 'low' : result.confidence || 'low'; // LLM results are not accurate
+
+            return {
+                verified: result.exists,
+                authorMatch: result.authorMatch !== false,
+                yearMatch: result.yearMatch !== false,
+                confidence: llm_confidence,
+                foundTitle: result.foundTitle || '',
+                foundAuthors: result.foundAuthors || '',
+                canonicalUrl: result.canonicalUrl || '',
+                message: result.message || 'Verification complete',
+                warning: '⚠️ LLM-verified results should be manually reviewed!',
+                source: 'LLM (Gemini)',
+                url: manualSearchUrl,
+            };
+        } catch (error) {
+            console.error('LLM verification error:', error);
+            return {
+                verified: false,
+                message: 'Verification failed: ' + error.message,
+                source: 'LLM',
+                url: manualSearchUrl,
+            };
+        }
+    }
+
+
+    // Combined verification (CrossRef -> Semantic Scholar → Google Scholar → LLM)
     async function enhancedVerifyReference(ref) {
-        // Try Semantic Scholar first
-        const ssResult = await verifyReferenceViaSemanticScholar(ref);
-        if (ssResult.verified) return ssResult;
+        // Check cache first
+        const cached = verificationCache.get(ref);
+        if (cached) {
+            console.log('✓ Using cached result');
+            return cached;
+        }
 
-        // Add Google Scholar link for manual check
-        ref.googleScholarLink = `https://scholar.google.com/scholar?q=${encodeURIComponent(ref.title)}`;
+        try {
+            await rateLimiter.throttle();
+        } catch (e) {
+            console.log('Rate Limiter failed!');
+        }
 
-        // Fallback to LLM verification
-        const llmResult = await verifyReferenceWithLLM(ref);
-        return llmResult;
+        let result;
+
+
+        // 1. Try DOI first (most authoritative)
+        if (ref.doi) {
+            console.log('Trying DOI resolution...');
+            const result = await verifyReferenceViaDOI(ref);
+            if (result.verified) {
+                console.log('✓ Verified via DOI');
+                verificationCache.set(ref, result);
+                return result;
+            }
+        }
+
+        // 2. Try CrossRef title/author search
+        console.log('Trying CrossRef...');
+        result = await verifyReferenceViaCrossRef(ref);
+        if (result.verified) {
+            console.log('✓ Verified via CrossRef');
+            verificationCache.set(ref, result);
+            return result;
+        }
+
+        // 3. Try Semantic Scholar
+        console.log('CrossRef failed, trying Semantic Scholar...');
+        result = await verifyReferenceViaSemanticScholar(ref);
+        if (result.verified) {
+            console.log('✓ Verified via Semantic Scholar');
+            verificationCache.set(ref, result);
+            return result;
+        }
+
+        // 4. Try OpenAlex (alternative to Google Scholar)
+        console.log('Semantic Scholar failed, trying OpenAlex...');
+        result = await verifyReferenceViaOpenAlex(ref);
+        if (result.verified) {
+            console.log('✓ Verified via OpenAlex');
+            verificationCache.set(ref, result);
+            return result;
+        }
+
+        // 5. Add Google Scholar link for manual verification
+        ref.googleScholarLink = getGoogleScholarUrl(ref.title);
+
+        console.log('OpenAlex failed, trying GoogleScholar...');
+        result = await verifyReferenceViaGoogleScholar(ref);
+        if (result.verified) {
+            console.log('✓ Verified via GoogleScholar');
+            verificationCache.set(ref, result);
+            return result;
+        }
+
+        // 6. Fallback to LLM with web search
+        console.log('All API verifications failed, using LLM with web search...');
+        result = await verifyReferenceWithLLM(ref);
+        verificationCache.set(ref, result);
+
+        return result;
     }
 
     // Process references button with LLM fallback and verification
