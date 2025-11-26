@@ -588,8 +588,8 @@
     <!-- References Input -->
     <div class="column">
         <h2>Paste References</h2>
-        <label for="referencesInput">Enter your references (supports numbered format [1], [2], etc. or blank line
-            separation)</label>
+        <label for="referencesInput">Enter your references (supports numbered format [1], [2], etc. or blank line separation)</label>
+        <small class="status-message">Keep references minimal to stay within Gemini free tier/request limits.</small>
         <textarea id="referencesInput" placeholder="Example:
 [1] Smith, J., & Johnson, A. (2023). Understanding Machine Learning. Journal of AI Research, 45(2), 123-145. https://doi.org/10.1234/example.2023
 [2] Brown, K. (2022). Data Science Fundamentals. Academic Press. http://example.com/paper
@@ -598,6 +598,7 @@ Or without numbers:
 Smith, J., & Johnson, A. (2023). Understanding Machine Learning...
 
 Brown, K. (2022). Data Science Fundamentals..."></textarea>
+
 
         <div class="progress-container" id="progressContainer">
             <div class="progress-bar" id="progressBar">0%</div>
@@ -719,10 +720,10 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
             // Select saved model or default
             if (savedModel && models.includes(savedModel)) {
                 ui.modelSelect.value = savedModel;
-            } else if (models.includes('gemini-2.0-flash-exp')) {
-                ui.modelSelect.value = 'gemini-2.0-flash-exp';
-            } else if (models.includes('gemini-1.5-flash')) {
-                ui.modelSelect.value = 'gemini-1.5-flash';
+            } else if (models.includes('gemini-flash-latest')) {
+                ui.modelSelect.value = 'gemini-flash-latest';
+            } else if (models.includes('gemini-2.5-flash')) {
+                ui.modelSelect.value = 'gemini-2.5-flash';
             } else {
                 ui.modelSelect.value = models[0];
             }
@@ -821,10 +822,10 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
 
         const prompt = `Extract the following information from this academic reference. Return ONLY a valid JSON object with these exact keys: title, authors, year, doi, url. If any field cannot be found, use an empty string. Do not include any markdown formatting or explanation, just the raw JSON object.
 
-Reference: ${reference}
+        Reference: """${reference}"""
 
-Example output format:
-{"title":"Example Title","authors":"Smith, J., & Doe, A.","year":"2023","doi":"10.1234/example","url":"https://example.com"}`;
+        Example output format:
+        {"title":"Example Title","authors":"Smith, J., & Doe, A.","year":"2023","doi":"10.1234/example","url":"https://example.com"}`;
 
         try {
             const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
@@ -834,7 +835,11 @@ Example output format:
                     contents: [{
                         parts: [{text: prompt}]
                     }]
-                })
+                }),
+                generationConfig: {
+                    temperature: 0,
+                    maxOutputTokens: 1024,
+                }
             });
 
             if (!response.ok) {
@@ -864,6 +869,101 @@ Example output format:
         } catch (error) {
             console.error('LLM extraction error:', error);
             return null;
+        }
+    }
+
+    // Helper for waiting
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    async function extractBatchWithLLM(references, maxRetries = 3, baseDelay = 4000) {
+        const apiKey = storage.get('geminiApiKey');
+        const model = storage.get('geminiModel');
+
+        if (!apiKey || !model || references.length === 0) {
+            return [];
+        }
+
+        const prompt = `You are a reference extraction tool.
+        I will provide a list of academic references.
+        You must extract the details for EACH reference.
+
+        Return ONLY a valid JSON Array of objects.
+        The order of the array must match the order of the input list exactly.
+
+        Keys for each object: title, authors, year, doi, url.
+        If a field is missing, use an empty string.
+
+        Input References: """${references}"""
+
+        Example Output Format:
+        [
+          {"title":"Title 1","authors":"Author A","year":"2023","doi":"...","url":"..."},
+          {"title":"Title 2","authors":"Author B","year":"2022","doi":"...","url":"..."}
+        ]`;
+
+        // RETRY LOOP
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{text: prompt}]
+                        }],
+                        generationConfig: {
+                            temperature: 0,
+                            maxOutputTokens: 8192, // Increased for batch processing
+                        }
+                    })
+                });
+
+                // Specific handling for Rate Limits (429)
+                if (response.status === 429) {
+                    throw new Error('Rate Limit Exceeded (429)');
+                }
+
+                // Handle other HTTP errors
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+                // Clean JSON
+                let jsonText = text.trim();
+                if (jsonText.includes('```')) {
+                    jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '');
+                }
+
+                // Extract Array
+                const start = jsonText.indexOf('[');
+                const end = jsonText.lastIndexOf(']');
+
+                if (start === -1 || end === -1) {
+                    throw new Error('Malformed JSON response from LLM');
+                }
+
+                jsonText = jsonText.substring(start, end + 1);
+                return JSON.parse(jsonText);
+
+            } catch (error) {
+                // Log the failure
+                console.warn(`Batch extraction attempt ${attempt}/${maxRetries} failed: ${error.message}`);
+
+                // If we have retries left, wait and loop again
+                if (attempt < maxRetries) {
+                    // Exponential Backoff: 4s -> 8s -> 16s
+                    const waitTime = baseDelay * Math.pow(2, attempt - 1);
+                    console.log(`Retrying in ${waitTime}ms...`);
+                    await delay(waitTime);
+                } else {
+                    // No retries left
+                    console.error('All batch retry attempts exhausted.');
+                    return [];
+                }
+            }
         }
     }
 
@@ -2067,55 +2167,89 @@ Respond ONLY with a JSON object in this exact format:
         showProgress();
 
         const references = parseReferences(text);
-        const extractedRefs = [];
+        const extractedRefs = new Array(references.length); // Placeholder array
 
-        // Phase 1: Extract references
-        for (let i = 0; i < references.length; i++) {
-            updateProgress(i + 1, references.length, `Extracting ${i + 1}/${references.length}`);
+        // 1. Run Local Extraction on ALL items first
+        const itemsNeedingLLM = [];
 
-            const ref = references[i];
-            let extracted = extractReferenceInfo(ref);
+        references.forEach((ref, index) => {
+            const extracted = extractReferenceInfo(ref);
+            extractedRefs[index] = extracted;
 
-            // If local extraction failed and API key is available, try LLM
-            if ((extracted.warnings.length > 0 || !extracted.title || !extracted.authors) && storage.get('geminiApiKey')) {
-                const llmExtracted = await extractWithLLM(ref);
+            // Check if local extraction was poor
+            // (missing title OR missing authors) AND we have an API key
+            if ((!extracted.title || !extracted.authors) && storage.get('geminiApiKey')) {
+                itemsNeedingLLM.push({
+                    index: index,
+                    text: ref
+                });
+            }
+        });
 
-                if (llmExtracted && (llmExtracted.title || llmExtracted.authors)) {
-                    // Merge results, preferring LLM where local failed
-                    extracted = {
-                        original: ref,
-                        title: llmExtracted.title || extracted.title,
-                        authors: llmExtracted.authors || extracted.authors,
-                        doi: llmExtracted.doi || extracted.doi,
-                        url: llmExtracted.url || extracted.url,
-                        year: llmExtracted.year || extracted.year,
-                        warnings: [],
-                        extractionMethod: 'llm'
-                    };
+        // 2. Process LLM candidates in Batches (Chunk size of 15 is safe for tokens)
+        const BATCH_SIZE = 15;
 
-                    // Re-validate
-                    if (!extracted.title) extracted.warnings.push('Title could not be extracted');
-                    if (!extracted.authors) extracted.warnings.push('Authors could not be extracted');
-                    if (!extracted.doi && !extracted.url) extracted.warnings.push('No DOI or URL found');
+        if (itemsNeedingLLM.length > 0) {
+            for (let i = 0; i < itemsNeedingLLM.length; i += BATCH_SIZE) {
+                // Get chunk
+                const chunk = itemsNeedingLLM.slice(i, i + BATCH_SIZE);
+                const chunkTexts = chunk.map(item => item.text);
+
+                updateProgress(i, itemsNeedingLLM.length, `LLM Extracting batch ${Math.ceil((i + 1) / BATCH_SIZE)}...`);
+
+                // Call the new batch function
+                const llmResults = await extractBatchWithLLM(chunkTexts);
+
+                // Merge results back into main array
+                llmResults.forEach((result, batchIdx) => {
+                    if (batchIdx < chunk.length) {
+                        const originalIndex = chunk[batchIdx].index;
+                        const existingData = extractedRefs[originalIndex];
+
+                        // Merge LLM data
+                        extractedRefs[originalIndex] = {
+                            original: existingData.original,
+                            title: result.title || existingData.title,
+                            authors: result.authors || existingData.authors,
+                            doi: result.doi || existingData.doi,
+                            url: result.url || existingData.url,
+                            year: result.year || existingData.year,
+                            warnings: [],
+                            extractionMethod: 'llm'
+                        };
+
+                        // Re-validate post-LLM
+                        const ref = extractedRefs[originalIndex];
+                        if (!ref.title) ref.warnings.push('Title could not be extracted');
+                        if (!ref.authors) ref.warnings.push('Authors could not be extracted');
+                    }
+                });
+
+                // Small delay to be nice to the API rate limit between batches
+                if (i + BATCH_SIZE < itemsNeedingLLM.length) {
+                    await new Promise(r => setTimeout(r, 2000));
                 }
             }
-
-            extractedRefs.push(extracted);
         }
 
         // Display initial results
         displayResults(extractedRefs);
 
-        // Phase 2: Verify references (if API key is available)
-        if (storage.get('geminiApiKey')) {
+        // Phase 3: Verify references (Sequential Verification Logic)
+        // Check if we have references to verify
+        if (extractedRefs.length > 0) {
             for (let i = 0; i < extractedRefs.length; i++) {
                 updateProgress(i + 1, extractedRefs.length, `Verifying ${i + 1}/${extractedRefs.length}`);
 
-                const verification = await enhancedVerifyReference(extractedRefs[i]);
-                extractedRefs[i].verification = verification;
+                // Only verify if we successfully extracted at least a title
+                // (trying to verify an empty object wastes resources)
+                if (extractedRefs[i].title) {
+                    const verification = await enhancedVerifyReference(extractedRefs[i]);
+                    extractedRefs[i].verification = verification;
 
-                // Update the feedback cell in real-time
-                updateVerificationFeedback(i, verification);
+                    // Update the feedback cell in real-time
+                    updateVerificationFeedback(i, verification);
+                }
             }
         }
 
@@ -2136,7 +2270,10 @@ Respond ONLY with a JSON object in this exact format:
 </script>
 
 <p class="subtitle">
-    <strong>Note:</strong> This is a static web page that <strong>run locally</strong> in your browser — <em>Pasted References are sent to Gemini API</em>. If preferred, you can also download them as HTML files and run them offline or clone from <a href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT License).
+    <strong>Note:</strong> This is a static web page that <strong>run locally</strong> in your browser — <em>Pasted
+    References are sent to Gemini API</em>. If preferred, you can also download them as HTML files and run them offline
+    or clone from <a href="https://github.com/janakanuwan/Web-Tools" target="_blank"
+                     rel="noopener noreferrer">Web-Tools</a> (MIT License).
 </p>
 
 </body>
