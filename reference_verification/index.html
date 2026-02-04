@@ -561,12 +561,12 @@
     Home
 </a>
 
-<h1>📚 Reference Verification Tool</h1>
+<h1>📚 Reference Verification Tool (Citation Checker)</h1>
 
 <div class="main-container">
     <!-- API Settings -->
     <div class="column">
-        <h2>API Settings (Optional)</h2>
+        <h2>[Optional] API Settings</h2>
         <div class="api-settings-grid">
             <div>
                 <label for="apiKey">Gemini API Key (for enhanced extraction & verification)</label>
@@ -587,8 +587,9 @@
 
     <!-- References Input -->
     <div class="column">
-        <h2>Paste References</h2>
-        <label for="referencesInput">Enter your references (supports numbered format [1], [2], etc. or blank line separation)</label>
+        <h2>Paste References / Citations</h2>
+        <label for="referencesInput">Enter your references (supports numbered format [1], [2], etc. or blank line
+            separation)</label>
         <small class="status-message">Keep references minimal to stay within Gemini free tier/request limits.</small>
         <textarea id="referencesInput" placeholder="Example:
 [1] Smith, J., & Johnson, A. (2023). Understanding Machine Learning. Journal of AI Research, 45(2), 123-145. https://doi.org/10.1234/example.2023
@@ -810,68 +811,6 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
 
     const rateLimiter = new RateLimiter();
 
-
-    // LLM extraction function
-    async function extractWithLLM(reference) {
-        const apiKey = storage.get('geminiApiKey');
-        const model = storage.get('geminiModel');
-
-        if (!apiKey || !model) {
-            return null;
-        }
-
-        const prompt = `Extract the following information from this academic reference. Return ONLY a valid JSON object with these exact keys: title, authors, year, doi, url. If any field cannot be found, use an empty string. Do not include any markdown formatting or explanation, just the raw JSON object.
-
-        Reference: """${reference}"""
-
-        Example output format:
-        {"title":"Example Title","authors":"Smith, J., & Doe, A.","year":"2023","doi":"10.1234/example","url":"https://example.com"}`;
-
-        try {
-            const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{text: prompt}]
-                    }]
-                }),
-                generationConfig: {
-                    temperature: 0,
-                    maxOutputTokens: 1024,
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('LLM API request failed');
-            }
-
-            const data = await response.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-            // Extract JSON from response (handle markdown code blocks)
-            let jsonText = text.trim();
-            if (jsonText.startsWith('```json')) {
-                jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            } else if (jsonText.startsWith('```')) {
-                jsonText = jsonText.replace(/```\n?/g, '').trim();
-            }
-
-            const extracted = JSON.parse(jsonText);
-
-            return {
-                title: extracted.title || '',
-                authors: extracted.authors || '',
-                year: extracted.year || '',
-                doi: extracted.doi || '',
-                url: extracted.url || ''
-            };
-        } catch (error) {
-            console.error('LLM extraction error:', error);
-            return null;
-        }
-    }
-
     // Helper for waiting
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -883,23 +822,54 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
             return [];
         }
 
-        const prompt = `You are a reference extraction tool.
-        I will provide a list of academic references.
-        You must extract the details for EACH reference.
+        const prompt = `You are a domain expert in academic reference and citation parsing.
 
-        Return ONLY a valid JSON Array of objects.
-        The order of the array must match the order of the input list exactly.
+You will be given a list of academic references in arbitrary formats (APA, MLA, Chicago, BibTeX-like, plain text, or incomplete citations).
 
-        Keys for each object: title, authors, year, doi, url.
-        If a field is missing, use an empty string.
+Your task is to extract structured metadata for EACH reference independently.
 
-        Input References: """${references}"""
+STRICT REQUIREMENTS:
+- Return ONLY a valid JSON array of objects.
+- Do NOT include any commentary, explanations, markdown, or extra text.
+- The order of the output array MUST exactly match the order of the input references.
+- Each input reference must produce exactly ONE output object.
 
-        Example Output Format:
-        [
-          {"title":"Title 1","authors":"Author A","year":"2023","doi":"...","url":"..."},
-          {"title":"Title 2","authors":"Author B","year":"2022","doi":"...","url":"..."}
-        ]`;
+FIELDS TO EXTRACT (keys must appear exactly as written):
+- title
+- authors
+- year
+- doi
+- url
+
+FIELD RULES:
+- Use empty strings ("") for any missing or unknown fields.
+- Authors must be a single string, preserving original order (e.g., "Smith, J.; Doe, A."). If not found use "".
+- Year must be a 4-digit string if available (e.g., "2021"), otherwise "".
+- DOI must contain ONLY the DOI identifier (e.g., "10.1000/xyz123"), not a URL.
+- URL should be a resolvable web link if present.
+- Do NOT infer or fabricate missing data.
+- Do NOT merge or split references.
+
+INPUT REFERENCES:
+"""${references}"""
+
+OUTPUT FORMAT EXAMPLE:
+[
+  {
+    "title": "Title 1",
+    "authors": "Author A; Author B",
+    "year": "2023",
+    "doi": "10.1234/example.doi",
+    "url": "https://doi.org/10.1234/example.doi"
+  },
+  {
+    "title": "Title 2",
+    "authors": "Author C",
+    "year": "2022",
+    "doi": "",
+    "url": ""
+  }
+]`;
 
         // RETRY LOOP
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -977,164 +947,881 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
             doi: '',
             url: '',
             year: '',
+            detectedStyle: 'unknown',
             warnings: [],
             extractionMethod: 'local'
         };
 
+        if (!reference || typeof reference !== 'string') {
+            result.warnings.push('Invalid input: reference must be a non-empty string');
+            return result;
+        }
+
         let cleanRef = reference.trim();
 
-        // Step 1: Extract and remove DOI (most specific pattern first)
-        const doiPatterns = [
-            /https?:\/\/doi\.org\/(10\.\S+?)(?=[.,;\s)\]]|$)/i,
-            /doi:\s*(10\.\S+?)(?=[.,;\s)\]]|$)/i,
-            /\b(10\.\d{4,9}\/[^\s.,;)\]]+?)(?=[.,;\s)\]]|$)/i
-        ];
-
-        for (let pattern of doiPatterns) {
-            const doiMatch = cleanRef.match(pattern);
-            if (doiMatch) {
-                result.doi = doiMatch[1] || doiMatch[0];
-                result.doi = result.doi.replace(/^https?:\/\/doi\.org\//, '').replace(/[.,;)\]]+$/, '');
-                cleanRef = cleanRef.replace(doiMatch[0], ' ').trim();
-                break;
-            }
+        if (cleanRef.length < 10) {
+            result.warnings.push('Reference text appears too short');
+            return result;
         }
 
-        // Step 2: Extract and remove URLs (non-DOI)
-        const urlPattern = /https?:\/\/(?!doi\.org)[^\s.,;)\]]+/gi;
-        const urlMatch = cleanRef.match(urlPattern);
-        if (urlMatch) {
-            result.url = urlMatch[0].replace(/[.,;)\]]+$/, '');
-            cleanRef = cleanRef.replace(urlMatch[0], ' ').trim();
-        }
+        // Normalize common unicode characters
+        cleanRef = normalizeUnicode(cleanRef);
 
-        // Step 3: Extract and remove year in parentheses
-        const yearPattern = /\((\d{4})\)/;
-        const yearMatch = cleanRef.match(yearPattern);
-        if (yearMatch) {
-            result.year = yearMatch[1];
-            cleanRef = cleanRef.replace(yearMatch[0], ' ').trim();
-        }
+        // Step 1: Detect citation style
+        result.detectedStyle = detectCitationStyle(cleanRef);
 
-        // Step 4: Extract authors (beginning of reference)
-        const authorPattern1 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?)*)/;
-        const authorPattern2 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?(?:\s*,\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?)*(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z]\.(?:\s*[A-Z]\.)?))/;
-        const authorPattern3 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?\s+et\s+al\.?)/;
-        const authorPattern4 = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z][a-z]+(?:\s*,?\s*(?:&|and)\s*[A-Z][a-z]+(?:-[A-Z][a-z]+)?,\s*[A-Z][a-z]+)*)/;
+        // Step 2: Extract DOI (multiple formats)
+        const doiResult = extractDOI(cleanRef);
+        result.doi = doiResult.doi;
+        cleanRef = doiResult.remaining;
 
-        const authorPatterns = [authorPattern1, authorPattern2, authorPattern3, authorPattern4];
+        // Step 3: Extract URLs (non-DOI)
+        const urlResult = extractURL(cleanRef);
+        result.url = urlResult.url;
+        cleanRef = urlResult.remaining;
 
-        for (let pattern of authorPatterns) {
-            const authorMatch = cleanRef.match(pattern);
-            if (authorMatch) {
-                result.authors = authorMatch[1].trim();
-                cleanRef = cleanRef.replace(authorMatch[0], '').trim();
-                break;
-            }
-        }
+        // Step 4: Extract year
+        const yearResult = extractYear(cleanRef, result.detectedStyle);
+        result.year = yearResult.year;
+        cleanRef = yearResult.remaining;
 
-        // Step 5: Clean up remaining text
-        cleanRef = cleanRef
-            .replace(/^[.,;:\s]+|[.,;:\s]+$/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
+        // Step 5: Extract authors based on detected style
+        const authorResult = extractAuthors(cleanRef, result.detectedStyle);
+        result.authors = authorResult.authors;
+        cleanRef = authorResult.remaining;
 
-        // Step 6: Extract title from remaining text
-        const titleQuoteMatch = cleanRef.match(/"([^"]+)"/);
-        if (titleQuoteMatch) {
-            result.title = titleQuoteMatch[1].trim();
-            cleanRef = cleanRef.replace(titleQuoteMatch[0], '').trim();
-        } else {
-            const titleMatch = cleanRef.match(/^([^.,]+[.,])/);
-            if (titleMatch) {
-                result.title = titleMatch[1].replace(/[.,]+$/, '').trim();
-            } else if (cleanRef.length > 0) {
-                result.title = cleanRef.replace(/[.,;)\]]+$/, '').trim();
-            }
-        }
+        // Step 6: Extract title based on detected style
+        const titleResult = extractTitle(cleanRef, result.detectedStyle);
+        result.title = titleResult.title;
 
-        // Clean up extracted fields
-        result.title = result.title.replace(/[.,;)\]]+$/, '').trim();
-        result.authors = result.authors.replace(/[.,;)\]]+$/, '').trim();
+        // Step 7: Validate and add warnings
+        validateResults(result);
 
-        // Validation and warnings
-        if (!result.title) {
-            result.warnings.push('Title could not be extracted');
-        }
-        if (!result.authors) {
-            result.warnings.push('Authors could not be extracted');
-        }
-        if (!result.doi && !result.url) {
-            result.warnings.push('No DOI or URL found');
-        }
-        if (result.doi && !result.doi.match(/^10\.\d{4,}/)) {
-            result.warnings.push('DOI format may be invalid');
-        }
-        if (result.url && !result.url.match(/^https?:\/\//)) {
-            result.warnings.push('URL format may be invalid');
-        }
+        // Step 8: Clean all fields
+        cleanAllFields(result);
 
         return result;
     }
 
-    // Parse references from input - IMPROVED to handle numbered format AND newlines
-    function parseReferences(text) {
-        const references = [];
+    function normalizeUnicode(text) {
+        return text
+            .replace(/[\u2018\u2019\u201A\u201B]/g, "'")  // Smart single quotes
+            .replace(/[\u201C\u201D\u201E\u201F]/g, '"')  // Smart double quotes
+            .replace(/[\u2013\u2014]/g, '-')              // En/em dashes
+            .replace(/\u2026/g, '...')                     // Ellipsis
+            .replace(/\u00A0/g, ' ')                       // Non-breaking space
+            .replace(/&amp;/g, '&')                        // HTML entities
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/\s+/g, ' ');                         // Normalize whitespace
+    }
 
-        // First, try to detect if it's numbered format like [1], [2], etc.
-        const numberedPattern = /\[\d+\]/;
-        const hasNumberedFormat = numberedPattern.test(text);
+    function detectCitationStyle(reference) {
+        const ref = reference.trim();
 
-        if (hasNumberedFormat) {
-            // Split by numbered markers
-            const parts = text.split(/\[\d+\]/);
+        // -----------------------------------------------------------
+        // 1. NUMBERED REFERENCES: [1], 1., (1)
+        // -----------------------------------------------------------
+        if (/^\s*\[?\d+\]?\.?\s/.test(ref)) {
 
-            for (let i = 1; i < parts.length; i++) { // Start from 1 to skip empty first part
-                const ref = parts[i].trim();
-                if (ref.length > 0) {
-                    // Remove leading/trailing whitespace and combine multi-line references
-                    const cleanedRef = ref.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
-                    references.push(cleanedRef);
-                }
-            }
-        } else {
-            // Try to detect if each line is a separate reference
-            // Heuristic: if most lines start with a capital letter and are long enough, treat each as a reference
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-            const potentialRefs = lines.filter(line =>
-                line.length > 50 && // Reasonable minimum length
-                /^[A-Z]/.test(line) // Starts with capital letter
-            );
-
-            // If most non-empty lines look like references, treat each line as a reference
-            if (potentialRefs.length >= lines.length * 0.7) {
-                return lines;
+            // PRIORITY 1: Web References (ACM Web / Generic Web)
+            // Pattern: [...] ... Retrieved/Accessed ... from ... http
+            if (/(?:Retrieved|Accessed|Available)\s+(?:from|at|on)?\s*:?\s*https?:\/\//i.test(ref)) {
+                return 'acm-web';
             }
 
-            // Otherwise, use blank-line separation (original logic)
-            let currentRef = '';
-            const textLines = text.split('\n');
-
-            for (let line of textLines) {
-                line = line.trim();
-
-                if (line === '') {
-                    if (currentRef) {
-                        references.push(currentRef.trim());
-                        currentRef = '';
-                    }
-                } else {
-                    currentRef += (currentRef ? ' ' : '') + line;
-                }
+            // PRIORITY 2: Standard ACM Format (Conference/Journal)
+            // Pattern: [...] Authors. Year. Title. In Proceedings...
+            // Key Differentiator: "In Proceedings", "In Journal", or strict "Author. Year." structure
+            if (/In\s+Proceedings\s+of|In\s+[A-Z].*?\d{4}/.test(ref)) {
+                return 'acm';
             }
 
-            if (currentRef) {
-                references.push(currentRef.trim());
+            // PRIORITY 3: IEEE Format
+            // Note: We only check this if it didn't match Proceedings above
+            if (/"[^"]{10,},?"/.test(ref) || /\bvol\.\s*\d+|pp\.\s*\d+/i.test(ref)) {
+                return 'ieee';
+            }
+
+            // Fallback for ACM: Strictly checks for "Author. Year." (Note the dots)
+            // Differentiates from APA "(Year)" and IEEE "Title,"
+            if (/^\s*\[?\d+\]?\s+.*?[a-z]\.\s*\d{4}\.\s*[A-Z]/.test(ref)) {
+                return 'acm';
+            }
+
+            // PRIORITY 4: Vancouver Format
+            // Pattern: Journal; Year; Vol(Issue):Pages
+            if (/[;:].*?\d{4}.*?[;:]/.test(ref)) {
+                return 'vancouver';
+            }
+
+            return 'numbered-unknown';
+        }
+
+        // -----------------------------------------------------------
+        // 2. TEXT-BASED REFERENCES (APA, Harvard, Chicago, etc.)
+        // -----------------------------------------------------------
+
+        // APA/Harvard: Author (Year)
+        if (/\(\d{4}[a-z]?\)/.test(ref)) {
+            // Harvard often uses: Author (Year) "Title" or Author (Year) Title
+            // APA often uses: Author (Year). Title
+            if (/^[A-Z][a-zA-Z'-]+.*?\(\d{4}\)/.test(ref)) {
+                return 'apa'; // Mapping Harvard to APA logic often works best for parsing
+            }
+            if (/^[A-Z][a-zA-Z'-]+,\s*[A-Z]\.(?:\s*[A-Z]\.)*\s*\(\d{4}\)/.test(ref)) {
+                return 'harvard';
             }
         }
 
-        return references.filter(ref => ref.length > 0);
+        // MLA: "Title." (quoted title at end of citation usually)
+        if (/"[^"]{5,}"\.?$/.test(ref) || /^[A-Z][a-zA-Z'-]+.*?\. "[^"]{5,}"/.test(ref)) {
+            return 'mla';
+        }
+
+        // Chicago: Year.
+        // Differentiator: Author. Year. Title. (Similar to ACM but no [number])
+        if (/^[A-Z][a-zA-Z'-]+.*?\.\s*\d{4}\.\s/.test(ref)) {
+            return 'chicago-author-date';
+        }
+
+        // Chicago (notes): First Last, Title (Place: Publisher, Year)
+        if (/^[A-Z][a-zA-Z'-]+\s+[A-Z][a-zA-Z'-]+,\s*.+\([A-Z][a-z]+:\s*[^,]+,\s*\d{4}\)/.test(ref)) {
+            return 'chicago-notes';
+        }
+
+        // Generic: has quoted title
+        if (/"[^"]{10,}"/.test(ref)) {
+            return 'quoted-title';
+        }
+
+        return 'unknown';
+    }
+
+    function extractDOI(text) {
+        const doiPatterns = [
+            // Full URL format: https://doi.org/10.xxxx/xxxxx
+            /https?:\/\/(?:dx\.)?doi\.org\/(10\.\d{4,}[^\s,;)\]>"']+)/i,
+
+            // DOI: prefix format
+            /\bdoi:?\s*(10\.\d{4,}[^\s,;)\]>"']+)/i,
+
+            // Bare DOI format (more restrictive)
+            /(?:^|\s)(10\.\d{4,9}\/[^\s,;)\]>"']+)/
+        ];
+
+        for (const pattern of doiPatterns) {
+            const match = text.match(pattern);
+            if (match) {
+                let doi = match[1];
+                // Clean trailing punctuation
+                doi = doi.replace(/[.,;:)\]>"']+$/, '');
+
+                // Validate DOI structure
+                if (/^10\.\d{4,}\/\S+$/.test(doi)) {
+                    const remaining = text.replace(match[0], ' ').replace(/\s+/g, ' ').trim();
+                    return {doi, remaining};
+                }
+            }
+        }
+
+        return {doi: '', remaining: text};
+    }
+
+    function extractURL(text) {
+        // Match URLs but exclude DOI URLs
+        const urlPattern = /(?:(?:Retrieved|Available|Accessed)\s+(?:from|at|on):?\s*)?(https?:\/\/(?!(?:dx\.)?doi\.org)[^\s)\]>"'<]+)/gi;
+        const match = urlPattern.exec(text);
+
+        if (match) {
+            let url = match[1];
+            // Clean trailing punctuation
+            url = url.replace(/[.,;:)\]>"']+$/, '');
+
+            // Basic URL validation
+            if (/^https?:\/\/[^\s]+\.[^\s]+/.test(url)) {
+                let remaining = text.replace(match[0], ' ');
+                // Also remove access date patterns
+                // Added (?:\s+(?:from|at|on))? to the end of these regex patterns
+                remaining = remaining
+                    .replace(/\.\s*Accessed:?\s*\d{1,2}\s+\w+\.?\s*\d{4}\.?(?:\s+(?:from|at|on))?/gi, '.')
+                    .replace(/\.\s*Retrieved:?\s*\w+\.?\s*\d{1,2},?\s*\d{4}\.?(?:\s+(?:from|at|on))?/gi, '.')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                return {url, remaining};
+            }
+        }
+
+        return {url: '', remaining: text};
+    }
+
+    function extractYear(text, style) {
+        const currentYear = new Date().getFullYear();
+        let yearPatterns = [];
+
+        switch (style) {
+            case 'acm':
+                // ACM: Year appears after authors with period: Authors. YYYY. Title
+                yearPatterns = [
+                    /\.\s*(\d{4})\.\s/,           // . YYYY. (between periods)
+                ];
+                break;
+
+            case 'acm-web':
+                // Web reference: [#] YYYY. Title. Retrieved...
+                yearPatterns = [
+                    /^\s*\[?\d+\]?\s+(\d{4})\./
+                ];
+                break;
+
+            case 'apa':
+            case 'harvard':
+                yearPatterns = [
+                    /\((\d{4}[a-z]?)\)/,
+                    /\((\d{4}[a-z]?),\s*[^)]+\)/,
+                    /\((n\.d\.)\)/i,
+                    /\((in\s+press)\)/i
+                ];
+                break;
+
+            case 'mla':
+                yearPatterns = [
+                    /,\s*(\d{4})\.?\s*$/,
+                    /\b(\d{4})\.?\s*$/,
+                    /,\s*(\d{4})[,.]/
+                ];
+                break;
+
+            case 'chicago-author-date':
+                yearPatterns = [
+                    /\.\s*(\d{4}[a-z]?)\.\s/,
+                    /\.\s*(\d{4}[a-z]?)\.?\s*$/
+                ];
+                break;
+
+            case 'chicago-notes':
+                yearPatterns = [
+                    /,\s*(\d{4})\)\s*[.,]?\s*$/,
+                    /\((?:[^)]+,\s*)?(\d{4})\)/
+                ];
+                break;
+
+            case 'vancouver':
+            case 'ieee':
+                yearPatterns = [
+                    /\.\s*(\d{4})\s*[A-Z][a-z]{2,8}\s*;/,
+                    /\.\s*(\d{4})\s*;/,
+                    /\[(\d{4})\]/,
+                    /,\s*(\d{4})\.\s*$/
+                ];
+                break;
+
+            default:
+                yearPatterns = [
+                    /\((\d{4}[a-z]?)\)/,
+                    /\.\s*(\d{4})\.\s/,
+                    /,\s*(\d{4})[,.);\s]/
+                ];
+        }
+
+        // Fallback
+        yearPatterns.push(/\b((?:19|20)\d{2})\b/);
+
+        for (const pattern of yearPatterns) {
+            const match = text.match(pattern);
+            if (match) {
+                const yearStr = match[1];
+
+                if (/n\.d\./i.test(yearStr) || /in\s+press/i.test(yearStr)) {
+                    const remaining = text.replace(match[0], ' ').replace(/\s+/g, ' ').trim();
+                    return { year: yearStr.toLowerCase(), remaining };
+                }
+
+                const yearNum = parseInt(yearStr);
+
+                if (yearNum >= 1800 && yearNum <= currentYear + 2) {
+                    let remaining;
+
+                    if (style === 'apa' || style === 'harvard') {
+                        remaining = text.replace(/\(\d{4}[a-z]?(?:,\s*[^)]+)?\)/, ' ');
+                    } else if (style === 'acm') {
+                        // For ACM, DON'T remove the year pattern yet - author extraction needs it
+                        return { year: yearStr, remaining: text };
+                    } else if (style === 'acm-web') {
+                        // For acm-web, remove "Year." pattern
+                        remaining = text.replace(/\.\s*\d{4}\./, '.').replace(/^\s*\[?\d+\]?\s+\d{4}\./, '');
+                    } else {
+                        remaining = text.replace(match[0], ' ');
+                    }
+
+                    remaining = remaining.replace(/\s+/g, ' ').trim();
+                    return { year: yearStr, remaining };
+                }
+            }
+        }
+
+        return { year: '', remaining: text };
+    }
+
+    function extractAuthors(text, style) {
+        // Remove leading reference numbers
+        let cleanText = text.replace(/^\s*\[?\d+\]?\s*/, '').trim();
+
+        // DEFINITION: A surname can be one word ("Jane") or multiple ("John Doe")
+        const surnamePattern = "(?:[A-Z][a-zA-Z'-]+(?:\\s+[A-Z][a-zA-Z'-]+)*)";
+
+        const stylePatterns = {
+            'acm': [
+                // Removed lookahead (?=). Now consumes the year so it is removed from 'remaining'
+                // Old: /^([\s\S]+?)\.\s*(?=\d{4}\.)/
+                /^([\s\S]+?)\.\s*\d{4}\./,
+
+                // Same here. Consumes the year.
+                // Old: /^([\s\S]+?)\s*(?=\.?\s*\d{4}\.)/
+                /^([\s\S]+?)\s*\.?\s*\d{4}\./
+            ],
+
+            'acm-web': [
+                // ACM web references typically have no authors, just: [#] Year. Title. Retrieved...
+                // Return a pattern that matches nothing valid, so we skip to title extraction
+            ],
+
+            'ieee': [
+                // Initials First
+                /^((?:[A-Z]\.\s*)+[A-Z][a-zA-Z'-]+(?:\s*,\s*(?:[A-Z]\.\s*)+[A-Z][a-zA-Z'-]+)*(?:\s*,?\s*and\s+(?:[A-Z]\.\s*)+[A-Z][a-zA-Z'-]+)?)\s*,/,
+                // Full names in IEEE (First Last, First Last...)
+                /^([A-Z][a-zA-Z'-]+\s+[A-Z][a-zA-Z'-]+(?:,\s*[A-Z][a-zA-Z'-]+\s+[A-Z][a-zA-Z'-]+)*(?:,?\s*(?:and|&)\s+[A-Z][a-zA-Z'-]+\s+[A-Z][a-zA-Z'-]+)?)(?:,|\.)/
+            ],
+
+            'apa': [
+                // Uses surnamePattern to allow multiple surnames
+                new RegExp(`^((?:${surnamePattern},\\s*(?:[A-Z]\\.\\s*)+)(?:,\\s*(?:${surnamePattern},\\s*(?:[A-Z]\\.\\s*)+))*(?:,?\\s*(?:&|and)\\s*${surnamePattern},\\s*(?:[A-Z]\\.\\s*)+)?)`),
+                // Et al variations
+                new RegExp(`^(${surnamePattern},\\s*(?:[A-Z]\\.\\s*)+et\\s+al\\.?)`, 'i'),
+                // Single author
+                new RegExp(`^(${surnamePattern},\\s*(?:[A-Z]\\.\\s*)+)`),
+                // Organizations
+                /^([A-Z][A-Za-z\s]+(?:Organization|Association|Institute|University|Foundation|Society|Agency|Committee|Corporation|Company))/i
+            ],
+
+            'harvard': [
+                new RegExp(`^((?:${surnamePattern},\\s*(?:[A-Z]\\.)+)(?:\\s*,\\s*${surnamePattern},\\s*(?:[A-Z]\\.)+)*(?:\\s*(?:&|and)\\s*${surnamePattern},\\s*(?:[A-Z]\\.)+)?)`),
+                new RegExp(`^(${surnamePattern},\\s*(?:[A-Z]\\.)+\\s*et\\s+al\\.?)`, 'i'),
+                new RegExp(`^(${surnamePattern},\\s*(?:[A-Z]\\.)+)`)
+            ],
+
+            'mla': [
+                new RegExp(`^(${surnamePattern},\\s*${surnamePattern}(?:\\s+[A-Z]\\.)?(?:,\\s*and\s+${surnamePattern}\\s+${surnamePattern})?)\\.`),
+                new RegExp(`^(${surnamePattern},\\s*${surnamePattern}(?:\\s+${surnamePattern})?)\\.`),
+                new RegExp(`^(${surnamePattern},\\s*${surnamePattern},?\\s*et\\s+al\\.?)`, 'i')
+            ],
+
+            'chicago-author-date': [
+                new RegExp(`^(${surnamePattern},\\s*${surnamePattern}(?:,\\s*and\\s+${surnamePattern}\\s+${surnamePattern})?)\\.\\s*\\d{4}`),
+                new RegExp(`^(${surnamePattern},\\s*${surnamePattern})\\.\\s*\\d{4}`)
+            ],
+
+            'chicago-notes': [
+                new RegExp(`^(${surnamePattern}\\s+${surnamePattern}(?:\\s+and\\s+${surnamePattern}\\s+${surnamePattern})?)\\s*,`),
+                new RegExp(`^(${surnamePattern}\\s+${surnamePattern})\\s*,`)
+            ],
+
+            'vancouver': [
+                new RegExp(`^((?:${surnamePattern}\\s+[A-Z]{1,4})(?:\\s*,\\s*${surnamePattern}\\s+[A-Z]{1,4})*(?:\\s*,?\\s*et\\s+al\\.?)?)\\.`, 'i'),
+                new RegExp(`^((?:${surnamePattern}\\s+[A-Z]{1,4})(?:\\s*,\\s*${surnamePattern}\\s+[A-Z]{1,4})*)\\.`)
+            ],
+        };
+
+        // Safety Fallback for ACM/Numbered
+        if ((style === 'acm' || style === 'numbered-unknown') && cleanText.match(/\d{4}\./)) {
+             const yearMatch = cleanText.match(/\.?\s*(\d{4})\./);
+             if (yearMatch && yearMatch.index > 5) {
+                 const authors = cleanText.substring(0, yearMatch.index).trim().replace(/[.,]$/, '');
+                 const remaining = cleanText.substring(yearMatch.index + yearMatch[0].length).trim();
+                 return { authors, remaining };
+             }
+        }
+
+        const genericPatterns = [
+            // FirstName LastName, FirstName LastName, and FirstName LastName.
+            /^((?:[A-Z][a-z]+(?:\s+[A-Z]\.?)?\s+[A-Z][a-zA-Z'-]+)(?:\s*,\s*(?:[A-Z][a-z]+(?:\s+[A-Z]\.?)?\s+[A-Z][a-zA-Z'-]+))*(?:\s*,?\s*and\s+[A-Z][a-z]+(?:\s+[A-Z]\.?)?\s+[A-Z][a-zA-Z'-]+)?)\./,
+            // LastName, F. format
+            /^((?:[A-Z][a-zA-Z'-]+(?:,\s*[A-Z]\.(?:\s*[A-Z]\.)*)?(?:\s*,\s*)?)+(?:(?:&|and)\s+[A-Z][a-zA-Z'-]+(?:,\s*[A-Z]\.(?:\s*[A-Z]\.)*)?)?)/,
+            // et al. variations
+            /^([A-Z][a-zA-Z'-]+(?:,?\s*[A-Z]\.(?:\s*[A-Z]\.)?)?(?:\s*,?\s*|\s+)et\s+al\.?)/i,
+            // Simple First Last
+            /^([A-Z][a-zA-Z'-]+\s+[A-Z][a-zA-Z'-]+(?:\s*(?:,|and)\s+[A-Z][a-zA-Z'-]+\s+[A-Z][a-zA-Z'-]+)*)/
+        ];
+
+        const patterns = stylePatterns[style] || genericPatterns;
+
+        for (const pattern of patterns) {
+            const match = cleanText.match(pattern);
+            if (match && match[1]) {
+                let authors = match[1].trim().replace(/[.,;:]+$/, '');
+
+                if (authors.length >= 2 && authors.length <= 500 && /[A-Za-z]{2,}/.test(authors)) {
+                    // Since the regex now includes the year in match[0],
+                    // match[0].length automatically accounts for it.
+                    // The slicing here correctly removes authors AND year.
+                    const remaining = cleanText.slice(match[0].length).replace(/^[.,;:\s]+/, '').trim();
+                    return { authors, remaining };
+                }
+            }
+        }
+
+        // Try generic patterns if style-specific ones failed
+        if (stylePatterns[style] && stylePatterns[style].length > 0) {
+            for (const pattern of genericPatterns) {
+                const match = cleanText.match(pattern);
+                if (match && match[1]) {
+                    let authors = match[1].trim().replace(/[.,;:]+$/, '');
+                    if (authors.length >= 2 && authors.length <= 500 && /[A-Za-z]{2,}/.test(authors)) {
+                        const remaining = cleanText.slice(match[0].length).replace(/^[.,;:\s]+/, '').trim();
+                        return { authors, remaining };
+                    }
+                }
+            }
+        }
+
+        return { authors: '', remaining: cleanText };
+    }
+
+    function extractTitle(text, style) {
+        // First, try quoted titles
+        const quotedPatterns = [
+            /"([^"]{5,})"/,
+            /"([^"]{5,})"/,
+            /'([^']{5,})'/,
+            /«([^»]{5,})»/,
+            /「([^」]{5,})」/
+        ];
+
+        for (const pattern of quotedPatterns) {
+            const match = text.match(pattern);
+            if (match) {
+                return {
+                    title: match[1].trim(),
+                    remaining: text.replace(match[0], ' ').replace(/\s+/g, ' ').trim()
+                };
+            }
+        }
+
+        let match;
+
+        switch (style) {
+            case 'acm':
+                // ACM: Title. In Proceedings of... OR Title. Journal Name
+                match = text.match(/^([^.]+(?:\?|!)?)\.\s*(?=In\s|[A-Z][a-z]+\s+[A-Z]|\d+,\s*\d+|$)/);
+                if (match && match[1].length > 5) {
+                    return {
+                        title: match[1].trim(),
+                        remaining: text.slice(match[0].length).trim()
+                    };
+                }
+                // Fallback: everything before "In Proceedings"
+                match = text.match(/^(.+?)\.\s*In\s+Proceedings/i);
+                if (match && match[1].length > 5) {
+                    return {
+                        title: match[1].trim(),
+                        remaining: text.slice(match[1].length + 1).trim()
+                    };
+                }
+                break;
+
+           case 'acm-web':
+                // After removing [#] and year, the text starts with title
+                // Title ends at "Retrieved" or "Accessed"
+                match = text.match(/^(.+?)\.\s*(?:Retrieved|Accessed)/i);
+                if (match && match[1].length > 3) {
+                    return {
+                        title: match[1].trim(),
+                        remaining: text.slice(match[0].length - 9).trim()
+                    };
+                }
+                // Fallback: everything before the URL
+                match = text.match(/^(.+?)\.\s*(?=https?:\/\/)/i);
+                if (match && match[1].length > 3) {
+                    return {
+                        title: match[1].trim(),
+                        remaining: text.slice(match[0].length).trim()
+                    };
+                }
+                break;
+
+            case 'apa':
+            case 'harvard':
+                match = text.match(/^(.+?[^A-Z])\.\s*(?=[A-Z][a-z]+(?:\s+[A-Za-z]+)*\s*,?\s*\d|In\s+[A-Z]|$)/);
+                if (match && match[1].length > 10) {
+                    return {
+                        title: match[1].trim(),
+                        remaining: text.slice(match[0].length).trim()
+                    };
+                }
+                break;
+
+            case 'chicago-notes':
+                match = text.match(/^(.+?)\s*\([A-Z][a-z]+:/);
+                if (match && match[1].length > 5) {
+                    return {
+                        title: match[1].replace(/[,;:\s]+$/, '').trim(),
+                        remaining: text.slice(match[1].length).trim()
+                    };
+                }
+                break;
+
+            case 'chicago-author-date':
+                match = text.match(/^(.+?)\.\s*(?=[A-Z][a-z]+\s)/);
+                if (match && match[1].length > 10) {
+                    return {
+                        title: match[1].trim(),
+                        remaining: text.slice(match[0].length).trim()
+                    };
+                }
+                break;
+
+            case 'vancouver':
+            case 'ieee':
+                match = text.match(/^(.+?[.?!])\s*(?=[A-Z][a-z]*[A-Z]|[A-Z]{2,}\s|\d|$)/);
+                if (match && match[1].length > 10) {
+                    return {
+                        title: match[1].replace(/\.$/, '').trim(),
+                        remaining: text.slice(match[0].length).trim()
+                    };
+                }
+                break;
+        }
+
+        // Generic patterns
+        const genericPatterns = [
+            /^(.+?[?!])\s+/,
+            /^(.+?)\.\s*In[:\s]/i,
+            /^(.+?)\.\s*\d+\s*\(/,
+            /^(.{15,}?[^A-Z])\.\s+(?=[A-Z])/
+        ];
+
+        for (const pattern of genericPatterns) {
+            match = text.match(pattern);
+            if (match && match[1].length > 10) {
+                return {
+                    title: match[1].replace(/[.,;:]+$/, '').trim(),
+                    remaining: text.slice(match[0].length).trim()
+                };
+            }
+        }
+
+        // Last resort
+        const segments = text.split(/(?<=[.?!])\s+/);
+        for (const segment of segments) {
+            if (segment.length > 15 && /[a-z]{3,}/.test(segment)) {
+                return {
+                    title: segment.replace(/[.,;:]+$/, '').trim(),
+                    remaining: text.replace(segment, '').replace(/^\s*[.,;:]\s*/, '').trim()
+                };
+            }
+        }
+
+        return { title: '', remaining: text };
+    }
+
+    function validateResults(result) {
+        const currentYear = new Date().getFullYear();
+
+        // console.log(result);
+
+        // Title validation
+        if (!result.title) {
+            result.warnings.push('Title could not be extracted');
+        } else if (result.title.length < 5) {
+            result.warnings.push('Extracted title may be too short');
+        } else if (result.title.length > 500) {
+            result.warnings.push('Extracted title may be too long');
+        }
+
+        // Author validation
+        if (!result.authors) {
+            result.warnings.push('Authors could not be extracted');
+        } else if (!/[A-Z]/.test(result.authors)) {
+            result.warnings.push('Author format may be invalid');
+        }
+
+        // Year validation
+        if (!result.year) {
+            result.warnings.push('Publication year could not be extracted');
+        } else if (!/^(n\.d\.|in\s+press)$/i.test(result.year)) {
+            const yearNum = parseInt(result.year);
+            if (isNaN(yearNum) || yearNum < 1800 || yearNum > currentYear + 2) {
+                result.warnings.push('Extracted year may be invalid');
+            }
+        }
+
+        // DOI validation
+        if (result.doi && !/^10\.\d{4,}\/\S+$/.test(result.doi)) {
+            result.warnings.push('DOI format may be invalid');
+        }
+
+        // URL validation
+        if (result.url && !/^https?:\/\/[^\s]+\.[^\s]+/.test(result.url)) {
+            result.warnings.push('URL format may be invalid');
+        }
+
+        // Cross-field validation
+        if (!result.doi && !result.url) {
+            result.warnings.push('No DOI or URL found - verification may require manual lookup');
+        }
+    }
+
+    function cleanAllFields(result) {
+        const fieldsToClean = ['title', 'authors', 'doi', 'url'];
+
+        for (const field of fieldsToClean) {
+            if (result[field]) {
+                result[field] = result[field]
+                    .replace(/\s+/g, ' ')
+                    .replace(/^[.,;:\s"']+|[.,;:\s"']+$/g, '')
+                    .trim();
+            }
+        }
+    }
+
+    // Export for Node.js/module usage
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = {extractReferenceInfo};
+    }
+
+    // Parse references from input - handles multiple formats
+    function parseReferences(text) {
+        const references = [];
+
+        if (!text || typeof text !== 'string') {
+            return references;
+        }
+
+        // Normalize line endings and clean up
+        text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
+        // Detect the reference format
+        const format = detectReferenceFormat(text);
+
+        switch (format) {
+            case 'bracketed':      // [1], [2], etc.
+                return parseBracketedFormat(text);
+            case 'dotted':         // 1., 2., etc.
+                return parseDottedFormat(text);
+            case 'parenthetical':  // (1), (2), etc. or 1), 2), etc.
+                return parseParentheticalFormat(text);
+            case 'line-per-ref':   // Each line is a reference
+                return parseLinePerRef(text);
+            case 'blank-separated': // References separated by blank lines
+            default:
+                return parseBlankSeparated(text);
+        }
+    }
+
+    // Detect what format the references are in
+    function detectReferenceFormat(text) {
+        const lines = text.split('\n').filter(l => l.trim().length > 0);
+
+        // Count occurrences of different patterns
+        const bracketedMatches = text.match(/\[\d+\]/g) || [];
+        const dottedMatches = text.match(/^\s*\d{1,3}\.\s+[A-Z]/gm) || [];
+        const parenMatches = text.match(/^\s*\(?\d{1,3}\)\s+[A-Z]/gm) || [];
+
+        // Check for bracketed format [1], [2], etc.
+        if (bracketedMatches.length >= 2) {
+            // Verify these are at the start of references, not citations within text
+            const atLineStart = (text.match(/^\s*\[\d+\]/gm) || []).length;
+            const afterNewline = (text.match(/\n\s*\[\d+\]/g) || []).length;
+            if (atLineStart + afterNewline >= bracketedMatches.length * 0.5) {
+                return 'bracketed';
+            }
+        }
+
+        // Check for dotted format: 1., 2., etc.
+        if (dottedMatches.length >= 2) {
+            return 'dotted';
+        }
+
+        // Check for parenthetical format: (1), 1), etc.
+        if (parenMatches.length >= 2) {
+            return 'parenthetical';
+        }
+
+        // Check if each line looks like a complete reference
+        if (lines.length >= 2) {
+            const looksLikeRefs = lines.filter(line => {
+                const trimmed = line.trim();
+                return (
+                    trimmed.length > 40 &&
+                    /^[A-Z]/.test(trimmed) &&
+                    // Contains year-like pattern
+                    /\b(19|20)\d{2}\b/.test(trimmed) &&
+                    // Contains author-like pattern (name with comma or period)
+                    /[A-Z][a-z]+[,.]/.test(trimmed)
+                );
+            });
+
+            if (looksLikeRefs.length >= lines.length * 0.6) {
+                return 'line-per-ref';
+            }
+        }
+
+        // Check for blank-line separation
+        const blankLineCount = (text.match(/\n\s*\n/g) || []).length;
+        if (blankLineCount >= 1 && lines.length > blankLineCount) {
+            return 'blank-separated';
+        }
+
+        // Default to line-per-ref if we have multiple lines
+        if (lines.length >= 2) {
+            return 'line-per-ref';
+        }
+
+        return 'blank-separated';
+    }
+
+    // Parse [1], [2], etc. format
+    function parseBracketedFormat(text) {
+        const references = [];
+        const parts = text.split(/(\[\d+\])/);
+        let currentRef = '';
+        let currentNum = null;
+
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i].trim();
+            if (/^\[\d+\]$/.test(part)) {
+                if (currentRef && currentNum !== null) {
+                    references.push({
+                        number: currentNum,
+                        text: cleanReferenceText(currentRef)
+                    });
+                }
+                currentNum = parseInt(part.match(/\d+/)[0]);
+                currentRef = '';
+            } else if (part.length > 0) {
+                currentRef += (currentRef ? ' ' : '') + part;
+            }
+        }
+
+        if (currentRef && currentNum !== null) {
+            references.push({
+                number: currentNum,
+                text: cleanReferenceText(currentRef)
+            });
+        }
+
+        return references
+            .map(r => `[${r.number}] ${r.text}`)
+            .filter(r => r.length > 0);
+    }
+
+    // Parse 1., 2., etc. format
+    function parseDottedFormat(text) {
+        const references = [];
+        // Matches "1." at start of line or string
+        const pattern = /(?:^|\n)\s*(\d{1,3})\.\s+/g;
+        const matches = [...text.matchAll(pattern)];
+
+        if (matches.length === 0) {
+            return [cleanReferenceText(text)];
+        }
+
+        for (let i = 0; i < matches.length; i++) {
+            const startIndex = matches[i].index + matches[i][0].length;
+            // The end of this ref is the start of the next match (or end of text)
+            const endIndex = matches[i + 1] ? matches[i + 1].index : text.length;
+
+            const refText = text.slice(startIndex, endIndex).trim();
+            if (refText.length > 0) {
+                references.push({
+                    number: parseInt(matches[i][1]),
+                    text: cleanReferenceText(refText)
+                });
+            }
+        }
+
+        return references
+            .map(r => `${r.number}. ${r.text}`)
+            .filter(r => r.length > 0);
+    }
+
+    // Parse (1), 1), etc. format
+    function parseParentheticalFormat(text) {
+        const references = [];
+        const pattern = /(?:^|\n)\s*\(?(\d{1,3})\)\s+/g;
+        const matches = [...text.matchAll(pattern)];
+
+        if (matches.length === 0) {
+            return [cleanReferenceText(text)];
+        }
+
+        for (let i = 0; i < matches.length; i++) {
+            const startIndex = matches[i].index + matches[i][0].length;
+            const endIndex = matches[i + 1] ? matches[i + 1].index : text.length;
+
+            const refText = text.slice(startIndex, endIndex).trim();
+            if (refText.length > 0) {
+                references.push({
+                    number: parseInt(matches[i][1]),
+                    text: cleanReferenceText(refText)
+                });
+            }
+        }
+
+        return references
+            .map(r => `(${r.number}) ${r.text}`)
+            .filter(r => r.length > 0);
+    }
+
+    // Parse line-per-reference format
+    function parseLinePerRef(text) {
+        return text
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .map(line => cleanReferenceText(line))
+            .filter(ref => ref.length > 10); // Filter out very short lines
+    }
+
+    // Parse blank-line-separated format
+    function parseBlankSeparated(text) {
+        const references = [];
+        let currentRef = '';
+
+        const lines = text.split('\n');
+
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+
+            if (trimmedLine === '') {
+                // Blank line - end of current reference
+                if (currentRef.trim().length > 0) {
+                    references.push(cleanReferenceText(currentRef));
+                    currentRef = '';
+                }
+            } else {
+                // Continue building current reference
+                currentRef += (currentRef ? ' ' : '') + trimmedLine;
+            }
+        }
+
+        // Don't forget the last reference
+        if (currentRef.trim().length > 0) {
+            references.push(cleanReferenceText(currentRef));
+        }
+
+        return references.filter(ref => ref.length > 10);
+    }
+
+    // Clean up reference text
+    function cleanReferenceText(text) {
+        return text
+            .replace(/\n+/g, ' ')      // Replace newlines with spaces
+            .replace(/\s+/g, ' ')       // Collapse multiple spaces
+            .replace(/^\s*[•\-–—]\s*/, '') // Remove leading bullets
+            .trim();
     }
 
     // Create Google Scholar search URL
@@ -1983,38 +2670,81 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
             };
         }
 
-        const prompt = `You are a highly accurate academic reference verification assistant. Your task is to verify if a given reference corresponds to a real, published academic work.
+        const prompt = `You are a highly accurate academic reference verification assistant.
 
-You MUST use your web search tool to find the work online.
+Your task is to determine whether a given reference corresponds to a real, published academic work (journal article, conference paper, book chapter, or preprint).
 
-Reference to Verify:
-Title: '${reference.title}'
-Authors: '${reference.authors}'
-Year: '${reference.year}'
-DOI: '${reference.doi}'
-URL: '${reference.url}'
+You MUST use your web search tool to perform verification. Do NOT rely on prior knowledge or assumptions.
 
-Follow these steps precisely:
-1.  **Search:** First, try to resolve the DOI (if provided). If no DOI, try the URL (if provided). If neither is provided or they fail, search for the paper by its 'Title' and 'Authors'.
-2.  **Analyze Findings:**
-    * **If NOT found:** If you cannot find any strong evidence of a published paper with this title or DOI, set "exists" to false, "confidence" to "high", and explain why in the "message".  If the title does not match with given title, set "exists" to false.
-    * **If found:** If you find a matching academic paper, set "exists" to true.
-3.  **Compare Details (if found):**
-    * Compare the found (canonical) data against the provided reference.
-    * **foundTitle:** Record the exact title you found.
-    * **foundAuthors:** Record the authors as listed on the found publication.
-    * **authorMatch:** Set to 'true' if the provided authors are a substantial match for the found authors. Be robust to abbreviations (e.g., 'J. Smith' vs 'John Smith') or 'et al.' usage. Set to 'false' only if there is a clear mismatch (e.g., different lead author).
-    * **yearMatch:** Set to 'true' if the provided 'Year' matches the publication year you found. (Allow a +/- 1 year difference for pre-prints vs. final versions).
-    * **canonicalUrl:** Record the DOI link (e.g., "https://doi.org/...") or the best URL you found for the paper.
-    * **confidence:** Set to 'high' if the DOI/Title/Authors all match. Set to 'medium' if the title matches but authors or year are slightly different. Set to 'low' if you found a paper but are very unsure it's the same one.
-    * **message:** Briefly explain your findings. Note any discrepancies (e.g., "Paper found via title, but provided year was 2020 and actual was 2021.").
+REFERENCE TO VERIFY:
+- Title: "${reference.title}"
+- Authors: "${reference.authors}"
+- Year: "${reference.year}"
+- DOI: "${reference.doi}"
+- URL: "${reference.url}"
 
-CRITICAL: Your response MUST be ONLY valid JSON. No markdown, no explanations, no code blocks.
-Start your response with { and end with }. Nothing else.
+VERIFICATION PROCEDURE (follow in order, do not skip steps):
 
-Respond ONLY with a JSON object in this exact format:
-{"exists":true,"confidence":"high","authorMatch":true,"yearMatch":true,"foundTitle":"...","foundAuthors":"...","canonicalUrl":"...","message":"..."}
-`;
+1. SEARCH STRATEGY (in strict priority order):
+   a. If a DOI is provided and non-empty, attempt to resolve the DOI directly.
+   b. If DOI resolution fails or is missing, attempt to resolve the provided URL.
+   c. If both fail or are missing, search by exact Title.
+   d. If needed, refine the search using Title + first Author.
+   e. Do NOT search by authors alone without the title.
+
+2. EVIDENCE STANDARD:
+   - Acceptable evidence includes publisher pages, journal websites, conference proceedings, DOI registries (e.g., Crossref), or reputable academic indexes.
+   - Blogs, citation-only pages, or unverifiable mirrors are NOT sufficient evidence.
+
+3. EXISTENCE DECISION:
+   - If no credible evidence of a published work matching the title or DOI is found, set:
+     - "exists": false
+     - "confidence": "high"
+     - Explain clearly why in "message".
+   - If a work is found but the title clearly does NOT match the provided title, set:
+     - "exists": false
+     - "confidence": "high"
+
+4. IF A MATCHING WORK IS FOUND:
+   - Set "exists": true
+   - Extract canonical metadata from the best available source.
+
+5. COMPARISON RULES (only if exists = true):
+   - foundTitle: Use the exact title from the source (case preserved).
+   - foundAuthors: Use the author list as published (order preserved).
+   - authorMatch:
+     - true if authors substantially match (allow initials, abbreviations, reordered middle names, or "et al.").
+     - false only if there is a clear mismatch (e.g., different first author or entirely different author set).
+   - yearMatch:
+     - true if the provided year matches the found publication year, allowing ±1 year for preprint vs. final publication.
+     - false otherwise.
+   - canonicalUrl:
+     - Prefer a DOI URL (https://doi.org/...) if available.
+     - Otherwise, provide the most authoritative publisher or archive URL.
+   - confidence:
+     - "high": Title + authors clearly match (DOI match if provided).
+     - "medium": Title matches but authors or year differ slightly.
+     - "low": A similar paper was found, but identity is uncertain.
+   - message:
+     - Briefly explain how the paper was found and note any discrepancies.
+
+STRICT OUTPUT REQUIREMENTS:
+- Respond with ONLY valid JSON.
+- No markdown, no explanations, no code blocks, no extra text.
+- Start the response with { and end with }.
+- All fields must be present exactly as specified.
+
+OUTPUT FORMAT (exact keys and order required):
+{
+  "exists": true,
+  "confidence": "high",
+  "authorMatch": true,
+  "yearMatch": true,
+  "foundTitle": "...",
+  "foundAuthors": "...",
+  "canonicalUrl": "...",
+  "message": "..."
+}`;
 
         try {
             const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
@@ -2169,68 +2899,143 @@ Respond ONLY with a JSON object in this exact format:
         const references = parseReferences(text);
         const extractedRefs = new Array(references.length); // Placeholder array
 
-        // 1. Run Local Extraction on ALL items first
-        const itemsNeedingLLM = [];
+        // // 1. Run Local Extraction on ALL items first
+        // const itemsNeedingLLM = [];
+        //
+        // references.forEach((ref, index) => {
+        //     const extracted = extractReferenceInfo(ref);
+        //     extractedRefs[index] = extracted;
+        //
+        //     // Check if local extraction was poor
+        //     // (missing title OR missing authors) AND we have an API key
+        //     if ((!extracted.title || !extracted.authors || extracted.title.length < 12) && storage.get('geminiApiKey')) {
+        //         itemsNeedingLLM.push({
+        //             index: index,
+        //             text: ref
+        //         });
+        //     }
+        // });
+        //
+        // // 2. Process LLM candidates in Batches (Chunk size of 15 is safe for tokens)
+        // const BATCH_SIZE = 15;
+        //
+        // if (itemsNeedingLLM.length > 0) {
+        //     for (let i = 0; i < itemsNeedingLLM.length; i += BATCH_SIZE) {
+        //         // Get chunk
+        //         const chunk = itemsNeedingLLM.slice(i, i + BATCH_SIZE);
+        //         const chunkTexts = chunk.map(item => item.text);
+        //
+        //         updateProgress(i, itemsNeedingLLM.length, `LLM Extracting batch ${Math.ceil((i + 1) / BATCH_SIZE)}...`);
+        //
+        //         // Call the new batch function
+        //         const llmResults = await extractBatchWithLLM(chunkTexts);
+        //
+        //         // Merge results back into main array
+        //         llmResults.forEach((result, batchIdx) => {
+        //             if (batchIdx < chunk.length) {
+        //                 const originalIndex = chunk[batchIdx].index;
+        //                 const existingData = extractedRefs[originalIndex];
+        //
+        //                 // Merge LLM data
+        //                 extractedRefs[originalIndex] = {
+        //                     original: existingData.original,
+        //                     title: result.title || existingData.title,
+        //                     authors: result.authors || existingData.authors,
+        //                     doi: result.doi || existingData.doi,
+        //                     url: result.url || existingData.url,
+        //                     year: result.year || existingData.year,
+        //                     warnings: [],
+        //                     extractionMethod: 'llm'
+        //                 };
+        //
+        //                 // Re-validate post-LLM
+        //                 const ref = extractedRefs[originalIndex];
+        //                 if (!ref.title) ref.warnings.push('Title could not be extracted');
+        //                 if (!ref.authors) ref.warnings.push('Authors could not be extracted');
+        //             }
+        //         });
+        //
+        //         // Small delay to be nice to the API rate limit between batches
+        //         if (i + BATCH_SIZE < itemsNeedingLLM.length) {
+        //             await new Promise(r => setTimeout(r, 2000));
+        //         }
+        //     }
+        // }
 
-        references.forEach((ref, index) => {
-            const extracted = extractReferenceInfo(ref);
-            extractedRefs[index] = extracted;
-
-            // Check if local extraction was poor
-            // (missing title OR missing authors) AND we have an API key
-            if ((!extracted.title || !extracted.authors) && storage.get('geminiApiKey')) {
-                itemsNeedingLLM.push({
-                    index: index,
-                    text: ref
-                });
-            }
-        });
-
-        // 2. Process LLM candidates in Batches (Chunk size of 15 is safe for tokens)
+        // 1. Try LLM Extraction first (if API key is available)
         const BATCH_SIZE = 15;
+        const hasApiKey = storage.get('geminiApiKey');
 
-        if (itemsNeedingLLM.length > 0) {
-            for (let i = 0; i < itemsNeedingLLM.length; i += BATCH_SIZE) {
-                // Get chunk
-                const chunk = itemsNeedingLLM.slice(i, i + BATCH_SIZE);
-                const chunkTexts = chunk.map(item => item.text);
+        if (hasApiKey) {
+            for (let i = 0; i < references.length; i += BATCH_SIZE) {
+                const chunk = references.slice(i, i + BATCH_SIZE);
+                const chunkIndices = chunk.map((_, idx) => i + idx);
 
-                updateProgress(i, itemsNeedingLLM.length, `LLM Extracting batch ${Math.ceil((i + 1) / BATCH_SIZE)}...`);
+                updateProgress(i, references.length, `LLM Extracting batch ${Math.ceil((i + 1) / BATCH_SIZE)}...`);
 
-                // Call the new batch function
-                const llmResults = await extractBatchWithLLM(chunkTexts);
+                const llmResults = await extractBatchWithLLM(chunk);
 
-                // Merge results back into main array
+                // Store LLM results
                 llmResults.forEach((result, batchIdx) => {
                     if (batchIdx < chunk.length) {
-                        const originalIndex = chunk[batchIdx].index;
-                        const existingData = extractedRefs[originalIndex];
-
-                        // Merge LLM data
+                        const originalIndex = chunkIndices[batchIdx];
                         extractedRefs[originalIndex] = {
-                            original: existingData.original,
-                            title: result.title || existingData.title,
-                            authors: result.authors || existingData.authors,
-                            doi: result.doi || existingData.doi,
-                            url: result.url || existingData.url,
-                            year: result.year || existingData.year,
+                            original: references[originalIndex],
+                            title: result.title || '',
+                            authors: result.authors || '',
+                            doi: result.doi || '',
+                            url: result.url || '',
+                            year: result.year || '',
                             warnings: [],
                             extractionMethod: 'llm'
                         };
-
-                        // Re-validate post-LLM
-                        const ref = extractedRefs[originalIndex];
-                        if (!ref.title) ref.warnings.push('Title could not be extracted');
-                        if (!ref.authors) ref.warnings.push('Authors could not be extracted');
                     }
                 });
 
                 // Small delay to be nice to the API rate limit between batches
-                if (i + BATCH_SIZE < itemsNeedingLLM.length) {
+                if (i + BATCH_SIZE < references.length) {
                     await new Promise(r => setTimeout(r, 2000));
                 }
             }
         }
+
+        // 2. Run Local Extraction for items that failed LLM or if no API key
+        references.forEach((ref, index) => {
+            const llmResult = extractedRefs[index];
+
+            // Check if LLM extraction was poor or didn't happen
+            const llmFailed = !llmResult ||
+                             !llmResult.title ||
+                             !llmResult.authors ||
+                             llmResult.title.length < 12;
+
+            if (llmFailed) {
+                const localExtracted = extractReferenceInfo(ref);
+
+                if (llmResult) {
+                    // Merge: prefer LLM data, fall back to local
+                    extractedRefs[index] = {
+                        original: ref,
+                        title: llmResult.title || localExtracted.title,
+                        authors: llmResult.authors || localExtracted.authors,
+                        doi: llmResult.doi || localExtracted.doi,
+                        url: llmResult.url || localExtracted.url,
+                        year: llmResult.year || localExtracted.year,
+                        warnings: [],
+                        extractionMethod: (llmResult.title && llmResult.authors) ? 'llm' : 'local'
+                    };
+                } else {
+                    // No LLM result at all, use local entirely
+                    extractedRefs[index] = localExtracted;
+                }
+            }
+
+            // Validate and add warnings
+            const finalRef = extractedRefs[index];
+            if (!finalRef.title) finalRef.warnings.push('Title could not be extracted');
+            if (!finalRef.authors) finalRef.warnings.push('Authors could not be extracted');
+        });
+
 
         // Display initial results
         displayResults(extractedRefs);
