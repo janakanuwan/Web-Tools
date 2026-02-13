@@ -818,9 +818,11 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
         const apiKey = storage.get('geminiApiKey');
         const model = storage.get('geminiModel');
 
-        if (!apiKey || !model || references.length === 0) {
+        if (!apiKey || !model || !references || references.length === 0) {
             return [];
         }
+
+        const safeReferences = String(references).replace(/`/g, "'");
 
         const prompt = `You are a domain expert in academic reference and citation parsing.
 
@@ -851,7 +853,7 @@ FIELD RULES:
 - Do NOT merge or split references.
 
 INPUT REFERENCES:
-"""${references}"""
+"""${safeReferences}"""
 
 OUTPUT FORMAT EXAMPLE:
 [
@@ -873,6 +875,8 @@ OUTPUT FORMAT EXAMPLE:
 
         // RETRY LOOP
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            let data = null;
+            let text = null;
             try {
                 const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
                     method: 'POST',
@@ -884,6 +888,7 @@ OUTPUT FORMAT EXAMPLE:
                         generationConfig: {
                             temperature: 0,
                             maxOutputTokens: 8192, // Increased for batch processing
+                            responseMimeType: "application/json"
                         }
                     })
                 });
@@ -898,29 +903,27 @@ OUTPUT FORMAT EXAMPLE:
                     throw new Error(`HTTP Error: ${response.status}`);
                 }
 
-                const data = await response.json();
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                data = await response.json();
+                text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-                // Clean JSON
-                let jsonText = text.trim();
-                if (jsonText.includes('```')) {
-                    jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '');
+                // Even in JSON mode, verify the string isn't empty
+                if (!text) {
+                    throw new Error('Empty response from LLM');
                 }
 
-                // Extract Array
-                const start = jsonText.indexOf('[');
-                const end = jsonText.lastIndexOf(']');
-
-                if (start === -1 || end === -1) {
-                    throw new Error('Malformed JSON response from LLM');
+                // Attempt to parse directly first (JSON mode usually returns clean JSON)
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    // Fallback: If clean parse fails, try to strip markdown/whitespace
+                    // This regex removes ```json, ```, and trims whitespace
+                    const cleanedText = text.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+                    return JSON.parse(cleanedText);
                 }
-
-                jsonText = jsonText.substring(start, end + 1);
-                return JSON.parse(jsonText);
 
             } catch (error) {
                 // Log the failure
-                console.warn(`Batch extraction attempt ${attempt}/${maxRetries} failed: ${error.message}`);
+                console.warn(`Batch extraction attempt ${attempt}/${maxRetries} failed: ${error.message}, response text: [${text}]`);
 
                 // If we have retries left, wait and loop again
                 if (attempt < maxRetries) {
@@ -2745,7 +2748,7 @@ OUTPUT FORMAT (exact keys and order required):
   "canonicalUrl": "...",
   "message": "..."
 }`;
-
+        let jsonText = null;
         try {
             const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
                 method: 'POST',
@@ -2759,6 +2762,7 @@ OUTPUT FORMAT (exact keys and order required):
                         topK: 1,
                         topP: 1,
                         maxOutputTokens: 1024,
+                        responseMimeType: "application/json",
                     }
                 })
             });
@@ -2772,7 +2776,7 @@ OUTPUT FORMAT (exact keys and order required):
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
             // Extract JSON from response
-            let jsonText = text.trim();
+            jsonText = text.trim();
             if (jsonText.startsWith('```json')) {
                 jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
             } else if (jsonText.startsWith('```')) {
@@ -2797,7 +2801,8 @@ OUTPUT FORMAT (exact keys and order required):
                 url: manualSearchUrl,
             };
         } catch (error) {
-            console.error('LLM verification error:', error);
+            console.error('LLM verification error: ', error);
+            console.warn('JSON Text: ', jsonText)
             return {
                 verified: false,
                 message: 'Verification failed: ' + error.message,
