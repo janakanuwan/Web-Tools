@@ -656,6 +656,23 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
         apiGenerateUrl: (apiKey, model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
     };
 
+    // Helper to extract JSON from markdown code blocks
+    function safeJSONParse(text) {
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            const firstBracket = text.indexOf('[');
+            const lastBracket = text.lastIndexOf(']');
+            if (firstBracket !== -1 && lastBracket !== -1) {
+                return JSON.parse(text.substring(firstBracket, lastBracket + 1));
+            }
+            throw e;
+        }
+    }
+
+    // Helper for waiting
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
     const GOOGLE_SCHOLAR_API = 'https://scholar.google.com/scholar?hl=en&q=';
 
     // Initialize
@@ -811,53 +828,51 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
 
     const rateLimiter = new RateLimiter();
 
-    // Helper for waiting
-    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
     async function extractBatchWithLLM(references, maxRetries = 3, baseDelay = 4000) {
         const apiKey = storage.get('geminiApiKey');
         const model = storage.get('geminiModel');
 
-        if (!apiKey || !model || !references || references.length === 0) {
+        if (!apiKey || !model || !references || !Array.isArray(references) || references.length === 0) {
             return [];
         }
 
-        const safeReferences = String(references).replace(/`/g, "'");
+        console.debug('extractBatchWithLLM');
 
-        const prompt = `You are a domain expert in academic reference and citation parsing.
+        // We send an object structure to the LLM so it knows exactly which text belongs to which ID.
+        const indexedReferences = references.map((ref, index) => ({
+            id: index, // explicit tracking ID
+            text: String(ref).trim() // Ensure string and trim
+        }));
 
-You will be given a list of academic references in arbitrary formats (APA, MLA, Chicago, BibTeX-like, plain text, or incomplete citations).
+        // Safe serialization for the prompt (Avoids the comma-join bug)
+        const promptPayload = JSON.stringify(indexedReferences, null, 2);
 
-Your task is to extract structured metadata for EACH reference independently.
+        const prompt = `You are a specialized citation parsing engine.
+Input: A JSON list of academic references, each with an 'id' and 'text'.
+Task: Parse the 'text' into structured metadata.
 
-STRICT REQUIREMENTS:
-- Return ONLY a valid JSON array of objects.
-- Do NOT include any commentary, explanations, markdown, or extra text.
-- The order of the output array MUST exactly match the order of the input references.
-- Each input reference must produce exactly ONE output object.
+STRICT OUTPUT RULES:
+1. Return ONLY a valid JSON array.
+2. The output array must contain objects corresponding to the input.
+3. INCLUDE the 'id' from the input in the output object to ensure matching.
+4. If a field is not found, use "".
 
-FIELDS TO EXTRACT (keys must appear exactly as written):
-- title
-- authors
-- year
-- doi
-- url
+FIELDS:
+- id (integer, copy from input)
+- title (string)
+- authors (string, keep original order)
+- year (string, 4 digits or "")
+- doi (string, identifier only, 10.xxx/xxx)
+- url (string)
 
-FIELD RULES:
-- Use empty strings ("") for any missing or unknown fields.
-- Authors must be a single string, preserving original order (e.g., "Smith, J.; Doe, A."). If not found use "".
-- Year must be a 4-digit string if available (e.g., "2021"), otherwise "".
-- DOI must contain ONLY the DOI identifier (e.g., "10.1000/xyz123"), not a URL.
-- URL should be a resolvable web link if present.
-- Do NOT infer or fabricate missing data.
-- Do NOT merge or split references.
-
-INPUT REFERENCES:
-"""${safeReferences}"""
+INPUT DATA:
+${promptPayload}
 
 OUTPUT FORMAT EXAMPLE:
 [
   {
+    "id": 0,
     "title": "Title 1",
     "authors": "Author A; Author B",
     "year": "2023",
@@ -865,6 +880,7 @@ OUTPUT FORMAT EXAMPLE:
     "url": "https://doi.org/10.1234/example.doi"
   },
   {
+    "id": 1,
     "title": "Title 2",
     "authors": "Author C",
     "year": "2022",
@@ -875,7 +891,6 @@ OUTPUT FORMAT EXAMPLE:
 
         // RETRY LOOP
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            let data = null;
             let text = null;
             try {
                 const response = await fetch(API_CONFIG.apiGenerateUrl(apiKey, model), {
@@ -886,9 +901,9 @@ OUTPUT FORMAT EXAMPLE:
                             parts: [{text: prompt}]
                         }],
                         generationConfig: {
-                            temperature: 0,
+                            temperature: 0, // Deterministic
                             maxOutputTokens: 8192, // Increased for batch processing
-                            responseMimeType: "application/json"
+                            responseMimeType: "application/json" // Enforce JSON mode
                         }
                     })
                 });
@@ -903,7 +918,7 @@ OUTPUT FORMAT EXAMPLE:
                     throw new Error(`HTTP Error: ${response.status}`);
                 }
 
-                data = await response.json();
+                const data = await response.json();
                 text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
                 // Even in JSON mode, verify the string isn't empty
@@ -911,15 +926,30 @@ OUTPUT FORMAT EXAMPLE:
                     throw new Error('Empty response from LLM');
                 }
 
+                console.debug(`LLM response text: [${text}]`);
+
                 // Attempt to parse directly first (JSON mode usually returns clean JSON)
-                try {
-                    return JSON.parse(text);
-                } catch (e) {
-                    // Fallback: If clean parse fails, try to strip markdown/whitespace
-                    // This regex removes ```json, ```, and trims whitespace
-                    const cleanedText = text.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
-                    return JSON.parse(cleanedText);
-                }
+                const parsedData = safeJSONParse(text);
+
+                // Create a map of ID -> Extracted Data
+                const resultsMap = new Map();
+                parsedData.forEach(item => {
+                    if (item && typeof item.id !== 'undefined') {
+                        resultsMap.set(item.id, item);
+                    }
+                });
+
+                // If the LLM missed an item, we return a blank object or the original text to avoid shifting
+                return indexedReferences.map(ref => {
+                    const extracted = resultsMap.get(ref.id);
+                    if (extracted) {
+                        // Remove internal ID before returning
+                        const { id, ...cleanData } = extracted;
+                        return cleanData;
+                    }
+                    // Fallback for failed items
+                    return { title: "", authors: "", year: "", doi: "", url: "", error: "Extraction failed" };
+                });
 
             } catch (error) {
                 // Log the failure
@@ -928,7 +958,8 @@ OUTPUT FORMAT EXAMPLE:
                 // If we have retries left, wait and loop again
                 if (attempt < maxRetries) {
                     // Exponential Backoff: 4s -> 8s -> 16s
-                    const waitTime = baseDelay * Math.pow(2, attempt - 1);
+                    const jitter = Math.random() * 1000;
+                    const waitTime = (baseDelay * Math.pow(2, attempt - 1)) + jitter;
                     console.log(`Retrying in ${waitTime}ms...`);
                     await delay(waitTime);
                 } else {
@@ -2200,10 +2231,15 @@ OUTPUT FORMAT EXAMPLE:
         const longer = str1.length > str2.length ? str1 : str2;
         const shorter = str1.length > str2.length ? str2 : str1;
 
-        if (longer.length === 0) return 1.0;
+        if (longer.length === 0) {
+            console.warn(`Similarity checking: [${longer}] is empty`);
+            return 1.0;
+        }
 
         const editDistance = levenshteinDistance(longer, shorter);
-        return (longer.length - editDistance) / longer.length;
+        const score =  (longer.length - editDistance) / longer.length;
+        // console.debug(`Similarity: ${score}, [${longer}] vs [${shorter}]`);
+        return score;
     }
 
     function getBigrams(str) {
@@ -2251,9 +2287,14 @@ OUTPUT FORMAT EXAMPLE:
                 const data = await crossRefResponse.json();
                 const work = data.message;
 
+                const titleSim = calculateSimilarity(
+                    (ref.title || '').toLowerCase(),
+                    (work.title?.[0] || '').toLowerCase()
+                );
+
                 return {
                     verified: true,
-                    confidence: 'high',
+                    confidence: titleSim > 0.9 ? 'high' : (titleSim > 0.7 ? 'medium' : 'low'),
                     authorMatch: true,
                     message: '✓ Verified DOI via CrossRef DOI lookup',
                     foundTitle: work.title?.[0] || '',
@@ -2273,173 +2314,139 @@ OUTPUT FORMAT EXAMPLE:
 
     // CrossRef API verification
     async function verifyReferenceViaCrossRef(ref) {
-        try {
-            // CrossRef API endpoint for works search
-            const baseUrl = 'https://api.crossref.org/works';
+    try {
+        const baseUrl = 'https://api.crossref.org/works';
+        const headers = { 'User-Agent': 'AcademicReferenceVerifier/1.0 (mailto:nuwanj.nus@gmail.com)' };
 
-            // Build query parameters
-            let query = '';
-
-            // Priority 1: Search by DOI if available
-            if (ref.doi) {
-                const doi = ref.doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//, '');
-                const doiUrl = `${baseUrl}/${encodeURIComponent(doi)}`;
-
-                try {
-                    const response = await fetch(doiUrl);
-                    if (response.ok) {
-                        const data = await response.json();
-                        const work = data.message;
-
-                        return {
-                            verified: true,
-                            confidence: 'high',
-                            authorMatch: true,
-                            yearMatch: work.published?.['date-parts']?.[0]?.[0] == ref.year,
-                            foundTitle: work.title?.[0] || '',
-                            foundAuthors: work.author?.map(a =>
-                                `${a.family}${a.given ? ', ' + a.given : ''}`
-                            ).join('; ') || '',
-                            canonicalUrl: `https://doi.org/${work.DOI}`,
-                            message: '✓ Verified via CrossRef DOI',
-                            source: 'CrossRef'
-                        };
-                    }
-                } catch (error) {
-                    console.log('DOI lookup failed, trying title search...');
-                }
+        const getTitleQueryUrl = () => {
+            if (!ref.title) return null;
+            let q = `query.title=${encodeURIComponent(ref.title)}`;
+            if (ref.authors) {
+                const firstAuthor = ref.authors.split(',')[0].split(';')[0].trim();
+                q += `&query.author=${encodeURIComponent(firstAuthor)}`;
             }
-
-            // Priority 2: Search by title
-            if (ref.title) {
-                query = `query.title=${encodeURIComponent(ref.title)}`;
-
-                // Add author filter if available
-                if (ref.authors) {
-                    const firstAuthor = ref.authors.split(',')[0].split(';')[0].trim();
-                    query += `&query.author=${encodeURIComponent(firstAuthor)}`;
-                }
-
-                // Add year filter if available
-                if (ref.year) {
-                    query += `&filter=from-pub-date:${ref.year},until-pub-date:${ref.year}`;
-                }
-
-                // Limit to top result and sort by relevance
-                query += '&rows=1&sort=relevance';
-
-                const searchUrl = `${baseUrl}?${query}`;
-                const response = await fetch(searchUrl, {
-                    headers: {
-                        'User-Agent': 'AcademicReferenceVerifier/1.0 (mailto:nuwanj.nus@gmail.com)'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`CrossRef API error: ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                if (!data.message.items || data.message.items.length === 0) {
-                    return {
-                        verified: false,
-                        message: 'Not found in CrossRef',
-                        source: 'CrossRef'
-                    };
-                }
-
-                const work = data.message.items[0];
-
-                // Calculate title similarity
-                const foundTitle = work.title?.[0] || '';
-                const titleSim = calculateSimilarity(
-                    ref.title.toLowerCase(),
-                    foundTitle.toLowerCase()
-                );
-
-                // Verify only if title similarity is high enough
-                if (titleSim < 0.6) {
-                    return {
-                        verified: false,
-                        message: `Low title similarity (${Math.round(titleSim * 100)}%)`,
-                        source: 'CrossRef'
-                    };
-                }
-
-                // Extract and compare authors
-                const foundAuthors = work.author?.map(a =>
-                    `${a.family}${a.given ? ', ' + a.given : ''}`
-                ).join('; ') || '';
-
-                let authorMatch = true;
-                if (ref.authors && foundAuthors) {
-                    const authorSim = calculateSimilarity(
-                        ref.authors.toLowerCase(),
-                        foundAuthors.toLowerCase()
-                    );
-                    authorMatch = authorSim > 0.5; // 50% threshold for authors
-                }
-
-                // Extract and compare year
-                const foundYear = work.published?.['date-parts']?.[0]?.[0];
-                const yearMatch = !ref.year || !foundYear ||
-                    Math.abs(parseInt(ref.year) - foundYear) <= 1;
-
-                // Determine confidence level
-                let confidence = 'low';
-                if (titleSim > 0.9 && authorMatch && yearMatch) {
-                    confidence = 'high';
-                } else if (titleSim > 0.75 && (authorMatch || yearMatch)) {
-                    confidence = 'medium';
-                }
-
-                // Update reference with found DOI if not present
-                if (work.DOI && !ref.doi) {
-                    ref.doi = work.DOI;
-                }
-
-                return {
-                    verified: titleSim > 0.6,
-                    confidence: confidence,
-                    authorMatch: authorMatch,
-                    yearMatch: yearMatch,
-                    foundTitle: foundTitle,
-                    foundAuthors: foundAuthors,
-                    canonicalUrl: work.DOI ? `https://doi.org/${work.DOI}` : work.URL,
-                    message: confidence === 'high'
-                        ? '✓ Verified via CrossRef'
-                        : `⚠ Partial match in CrossRef (${Math.round(titleSim * 100)}% title similarity)`,
-                    source: 'CrossRef',
-                    score: work.score // CrossRef relevance score
-                };
+            if (ref.year) {
+                q += `&filter=from-pub-date:${ref.year},until-pub-date:${ref.year}`;
             }
+            return `${baseUrl}?${q}&rows=1&sort=relevance`;
+        };
 
-            return {
-                verified: false,
-                message: 'Insufficient data for CrossRef search',
-                source: 'CrossRef'
-            };
+        let targetUrl = '';
+        let isDirectDoiLookup = false;
 
-        } catch (error) {
-            console.error('CrossRef verification error:', error);
-            return {
+        // Determine the starting URL
+        if (ref.doi) {
+            const cleanDoi = ref.doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//, '');
+            targetUrl = `${baseUrl}/${encodeURIComponent(cleanDoi)}`;
+            isDirectDoiLookup = true;
+        } else if (ref.title) {
+            targetUrl = getTitleQueryUrl();
+        } else {
+            return { verified: false, message: 'Insufficient data for CrossRef search', source: 'CrossRef' };
+        }
+
+        let response = await fetch(targetUrl, { headers });
+
+        // Fallback: If DOI lookup failed (404), switch URL to Title Query and retry
+        if (!response.ok && isDirectDoiLookup && ref.title) {
+            console.log('DOI lookup failed, switching to title search...');
+            targetUrl = getTitleQueryUrl();
+            isDirectDoiLookup = false; // We are no longer doing a direct lookup
+            response = await fetch(targetUrl, { headers });
+        }
+
+        if (!response.ok) {
+            // If it still fails after fallback, throw error
+            throw new Error(`CrossRef API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Normalize data: Direct DOI returns `data.message` (object), Query returns `data.message.items` (array)
+        let work = isDirectDoiLookup ? data.message : (data.message.items?.[0]);
+
+        if (!work) {
+            return { verified: false, message: 'Not found in CrossRef', source: 'CrossRef' };
+        }
+
+        const foundTitle = work.title?.[0] || '';
+        const titleSim = calculateSimilarity(
+            (ref.title || '').toLowerCase(),
+            foundTitle.toLowerCase()
+        );
+
+        // Strictness check for Search Results (not needed for Direct DOI which is exact)
+        if (!isDirectDoiLookup && titleSim < 0.6) {
+             return {
                 verified: false,
-                message: `CrossRef error: ${error.message}`,
+                message: `Low title similarity (${Math.round(titleSim * 100)}%)`,
                 source: 'CrossRef'
             };
         }
+
+        const foundAuthors = work.author?.map(a =>
+            `${a.family}${a.given ? ', ' + a.given : ''}`
+        ).join('; ') || '';
+
+        let authorMatch = true;
+        if (ref.authors && foundAuthors) {
+            const authorSim = calculateSimilarity(ref.authors.toLowerCase(), foundAuthors.toLowerCase());
+            authorMatch = authorSim > 0.5;
+        }
+
+        const foundYear = work.published?.['date-parts']?.[0]?.[0];
+        const yearMatch = !ref.year || !foundYear || Math.abs(parseInt(ref.year) - foundYear) <= 1;
+
+        // Determine confidence
+        let confidence = 'low';
+        if (titleSim > 0.9){
+            if (isDirectDoiLookup){
+                confidence = 'high';
+            } else if ( authorMatch && yearMatch)
+            {
+                confidence = 'high';
+            }else{
+                confidence = 'medium'
+            }
+        } else if (titleSim > 0.75 && (authorMatch || yearMatch)) {
+            confidence = 'medium';
+        }
+
+        // Auto-fill DOI if missing
+        if (work.DOI && !ref.doi) ref.doi = work.DOI;
+
+        return {
+            verified: true,
+            confidence,
+            authorMatch,
+            yearMatch,
+            foundTitle,
+            foundAuthors,
+            canonicalUrl: work.DOI ? `https://doi.org/${work.DOI}` : work.URL,
+            message: confidence === 'high' ? '✓ Verified via CrossRef' : `⚠ Partial match (${Math.round(titleSim * 100)}%)`,
+            source: 'CrossRef',
+            score: work.score
+        };
+
+    } catch (error) {
+        console.error('CrossRef verification error:', error);
+        return { verified: false, message: `CrossRef error: ${error.message}`, source: 'CrossRef' };
     }
+}
 
     // Verify reference using Semantic Scholar before LLM
     async function verifyReferenceViaSemanticScholar(ref) {
         const result = {
             verified: false,
-            authorMatch: true,
+            authorMatch: false,
             message: 'Verifying via Semantic Scholar...',
             confidence: 'low',
             source: 'Semantic Scholar'
         };
+
+        if (!ref.title) {
+            return result
+        }
 
         try {
             const query = encodeURIComponent(ref.title);
@@ -2673,6 +2680,8 @@ OUTPUT FORMAT EXAMPLE:
             };
         }
 
+        console.debug('verifyReferenceWithLLM');
+
         const prompt = `You are a highly accurate academic reference verification assistant.
 
 Your task is to determine whether a given reference corresponds to a real, published academic work (journal article, conference paper, book chapter, or preprint).
@@ -2774,6 +2783,8 @@ OUTPUT FORMAT (exact keys and order required):
 
             const data = await response.json();
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+            console.debug(`LLM response text: [${text}]`);
 
             // Extract JSON from response
             jsonText = text.trim();
