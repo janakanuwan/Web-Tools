@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCS Submission & Reviews Merger</title>
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 900px) {
+            .container {
+                grid-template-columns: minmax(350px, 40%) 1fr;
+            }
+        }
+
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .home-menu .icon { margin-right: 8px; display: flex; align-items: center; }
+
+        .controls, .results {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+
+        .section { margin-bottom: 25px; }
+        .section label { font-weight: 600; display: block; margin-bottom: 5px; font-size: 0.9rem;}
+
+        .file-input-container { position: relative; margin-bottom: 10px; }
+
+        .custom-file-upload {
+            display: block; width: 100%; padding: 10px 15px;
+            background-color: var(--primary-color); color: white;
+            text-align: center; cursor: pointer; border-radius: 4px;
+            transition: background-color 0.3s; font-weight: 500;
+        }
+
+        .custom-file-upload:hover { background-color: #3b5a8c; }
+        input[type="file"] { display: none; }
+
+        .status-message { font-size: 0.85rem; color: #666; margin-top: 5px; }
+        .status-message.success { color: #2e7d32; }
+        .status-message.error { color: var(--accent-color); }
+
+        select {
+            width: 100%; padding: 8px; border: 1px solid var(--border-color);
+            border-radius: 4px; margin-bottom: 15px; font-size: 0.95rem;
+        }
+
+        /* Drag and Drop List Styles */
+        .columns-manager { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .column-box { border: 1px solid var(--border-color); border-radius: 4px; background: #fafafa; display: flex; flex-direction: column; max-height: 400px;}
+        .column-box h3 { font-size: 0.9rem; background: var(--secondary-color); padding: 8px; margin: 0; border-bottom: 1px solid var(--border-color); text-align: center; }
+        .column-list { list-style: none; padding: 10px; overflow-y: auto; flex-grow: 1; min-height: 150px; }
+        .column-item {
+            background: white; border: 1px solid #ccc; padding: 6px 10px;
+            margin-bottom: 6px; border-radius: 4px; font-size: 0.85rem;
+            cursor: grab; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .column-item:active { cursor: grabbing; }
+        .column-item.dragging { opacity: 0.5; background: #e9ecef; }
+        .remove-btn, .add-btn { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #888; }
+        .remove-btn:hover { color: var(--accent-color); }
+        .add-btn:hover { color: #2e7d32; }
+
+        .action-button {
+            width: 100%; padding: 12px; background-color: var(--primary-color);
+            color: white; border: none; border-radius: 4px; cursor: pointer;
+            font-size: 1.1rem; font-weight: 600; transition: background-color 0.3s;
+            margin-top: 20px;
+        }
+        .action-button:hover:not(:disabled) { background-color: #3b5a8c; }
+        .action-button:disabled { background-color: var(--border-color); cursor: not-allowed; }
+
+        .log-container {
+            background: #1e1e1e; color: #a9b7c6; padding: 15px;
+            border-radius: 4px; font-family: monospace; font-size: 0.85rem;
+            height: 300px; overflow-y: auto; margin-top: 15px;
+        }
+        .log-line { margin-bottom: 4px; }
+        .log-line.warn { color: #ffc66d; }
+        .log-line.error { color: #cc666e; }
+        .log-line.success { color: #629755; }
+
+        @media (max-width: 767px) {
+            .columns-manager { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../" class="home-menu">
+        <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        </span>
+        <span>Back to Home</span>
+    </a>
+
+    <h1>PCS Submission & Reviews Merger</h1>
+    <div class="container">
+        <div class="controls">
+            <div class="section">
+                <h2>1. Upload Files</h2>
+                <div class="file-input-container">
+                    <label for="subInput" class="custom-file-upload">Upload Submissions Excel</label>
+                    <input type="file" id="subInput" accept=".xlsx,.xls">
+                    <div id="subStatus" class="status-message">Waiting for file...</div>
+                </div>
+                <div class="file-input-container" style="margin-top: 15px;">
+                    <label for="revInput" class="custom-file-upload">Upload Reviews Excel</label>
+                    <input type="file" id="revInput" accept=".xlsx,.xls">
+                    <div id="revStatus" class="status-message">Waiting for file...</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>2. Select Join Keys</h2>
+                <label for="subKeySelect">Submission ID Column:</label>
+                <select id="subKeySelect" disabled><option>Upload file first...</option></select>
+
+                <label for="revKeySelect">Review ID Column:</label>
+                <select id="revKeySelect" disabled><option>Upload file first...</option></select>
+            </div>
+
+            <button id="mergeBtn" class="action-button" disabled>Merge & Download Excel</button>
+        </div>
+
+        <div class="results">
+            <h2>3. Configure Merge Fields</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #666;">
+                Drag and drop fields in the 'Selected' lists to reorder them. Click + or &times; to move fields.
+            </p>
+
+            <label>Submission Data Fields</label>
+            <div class="columns-manager" style="margin-bottom: 25px;">
+                <div class="column-box">
+                    <h3>Available</h3>
+                    <ul id="subAvailable" class="column-list"></ul>
+                </div>
+                <div class="column-box">
+                    <h3>Selected (Drag to reorder)</h3>
+                    <ul id="subSelected" class="column-list sortable"></ul>
+                </div>
+            </div>
+
+            <label>Review Data Fields (Will be prefixed by Role e.g., [1AC])</label>
+            <div class="columns-manager">
+                <div class="column-box">
+                    <h3>Available</h3>
+                    <ul id="revAvailable" class="column-list"></ul>
+                </div>
+                <div class="column-box">
+                    <h3>Selected (Drag to reorder)</h3>
+                    <ul id="revSelected" class="column-list sortable"></ul>
+                </div>
+            </div>
+
+            <h2 style="margin-top: 30px;">Execution Log</h2>
+            <div id="logConsole" class="log-container">
+                <div class="log-line">Ready. Waiting for files to be uploaded.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // State
+            let subData = [], revData = [];
+            let subHeaders = [], revHeaders = [];
+
+            // Default Suggestions based on the Python script
+            const defaultSubKeys = ['Paper ID', 'Title', 'Decision', 'Overall Score'];
+            const defaultRevKeys = [
+                'Decision', 'Review Score', 'Best paper nomination', 'Best Paper Nomination Paragraph',
+                'Recommendation (Round 1)', 'Recommendation (Round 2)', '1AC: The Meta-Review',
+                '1AC: The Meta-Review (Round 2)', 'Review (Round 1)', 'Re-review', 'Review ID'
+            ];
+
+            // Elements
+            const subInput = document.getElementById('subInput');
+            const revInput = document.getElementById('revInput');
+            const subStatus = document.getElementById('subStatus');
+            const revStatus = document.getElementById('revStatus');
+            const subKeySelect = document.getElementById('subKeySelect');
+            const revKeySelect = document.getElementById('revKeySelect');
+            const mergeBtn = document.getElementById('mergeBtn');
+            const logConsole = document.getElementById('logConsole');
+
+            // Logging function
+            function log(msg, type = '') {
+                const el = document.createElement('div');
+                el.className = `log-line ${type}`;
+                el.textContent = `> ${msg}`;
+                logConsole.appendChild(el);
+                logConsole.scrollTop = logConsole.scrollHeight;
+            }
+
+            // File Readers
+            subInput.addEventListener('change', (e) => handleUpload(e, 'sub'));
+            revInput.addEventListener('change', (e) => handleUpload(e, 'rev'));
+
+            function handleUpload(e, type) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const statusEl = type === 'sub' ? subStatus : revStatus;
+                statusEl.textContent = `Processing ${file.name}...`;
+                statusEl.className = 'status-message';
+                log(`Reading ${file.name}...`);
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = new Uint8Array(evt.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        // Read as JSON array of objects
+                        const json = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+
+                        if (json.length === 0) throw new Error("File is empty.");
+
+                        // Extract headers from keys of the first row (or sheet_to_json with header:1 for strictly first row)
+                        const rawArr = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        const headers = rawArr[0].map(h => String(h).trim()).filter(h => h);
+
+                        if (type === 'sub') {
+                            subData = json;
+                            subHeaders = headers;
+                            populateDropdown(subKeySelect, headers, 'Paper ID');
+                            populateLists('sub', headers, defaultSubKeys);
+                            statusEl.textContent = `Loaded ${json.length} rows.`;
+                            statusEl.className = 'status-message success';
+                        } else {
+                            revData = json;
+                            revHeaders = headers;
+                            populateDropdown(revKeySelect, headers, 'Sub ID');
+                            populateLists('rev', headers, defaultRevKeys);
+                            statusEl.textContent = `Loaded ${json.length} rows.`;
+                            statusEl.className = 'status-message success';
+                        }
+
+                        checkReady();
+                    } catch (err) {
+                        statusEl.textContent = `Error: ${err.message}`;
+                        statusEl.className = 'status-message error';
+                        log(`Error parsing file: ${err.message}`, 'error');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            // UI Population
+            function populateDropdown(selectEl, options, defaultMatch) {
+                selectEl.innerHTML = '';
+                selectEl.disabled = false;
+                let matchIndex = 0;
+
+                options.forEach((opt, idx) => {
+                    const el = document.createElement('option');
+                    el.value = opt;
+                    el.textContent = opt;
+                    selectEl.appendChild(el);
+                    if (opt.toLowerCase() === defaultMatch.toLowerCase()) {
+                        matchIndex = idx;
+                    }
+                });
+                selectEl.selectedIndex = matchIndex;
+            }
+
+            function populateLists(type, allHeaders, defaultSelections) {
+                const availableList = document.getElementById(`${type}Available`);
+                const selectedList = document.getElementById(`${type}Selected`);
+                availableList.innerHTML = ''; selectedList.innerHTML = '';
+
+                allHeaders.forEach(header => {
+                    const isSelected = defaultSelections.some(d => d.toLowerCase() === header.toLowerCase());
+                    createListItem(header, type, isSelected);
+                });
+            }
+
+            function createListItem(text, type, isSelected) {
+                const li = document.createElement('li');
+                li.className = 'column-item';
+                li.textContent = text;
+                li.dataset.val = text;
+
+                const btn = document.createElement('button');
+                if (isSelected) {
+                    btn.className = 'remove-btn';
+                    btn.innerHTML = '&times;';
+                    li.draggable = true;
+                    li.addEventListener('dragstart', handleDragStart);
+                    li.addEventListener('dragover', handleDragOver);
+                    li.addEventListener('drop', handleDrop);
+                    li.addEventListener('dragend', handleDragEnd);
+                    btn.onclick = () => { li.remove(); createListItem(text, type, false); };
+                    li.appendChild(btn);
+                    document.getElementById(`${type}Selected`).appendChild(li);
+                } else {
+                    btn.className = 'add-btn';
+                    btn.innerHTML = '+';
+                    btn.onclick = () => { li.remove(); createListItem(text, type, true); };
+                    li.appendChild(btn);
+                    document.getElementById(`${type}Available`).appendChild(li);
+                }
+            }
+
+            // Drag and Drop Logic for Reordering
+            let draggedItem = null;
+            function handleDragStart(e) { draggedItem = this; setTimeout(() => this.classList.add('dragging'), 0); }
+            function handleDragEnd(e) { this.classList.remove('dragging'); draggedItem = null; }
+            function handleDragOver(e) {
+                e.preventDefault();
+                const container = this.parentNode;
+                const afterElement = getDragAfterElement(container, e.clientY);
+                if (afterElement == null) {
+                    container.appendChild(draggedItem);
+                } else {
+                    container.insertBefore(draggedItem, afterElement);
+                }
+            }
+            function handleDrop(e) { e.preventDefault(); }
+
+            function getDragAfterElement(container, y) {
+                const draggableElements = [...container.querySelectorAll('.column-item:not(.dragging)')];
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else { return closest; }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+            }
+
+            function checkReady() {
+                if (subData.length > 0 && revData.length > 0) {
+                    mergeBtn.disabled = false;
+                }
+            }
+
+            function getListValues(listId) {
+                return [...document.getElementById(listId).children].map(li => li.dataset.val);
+            }
+
+            // Core Merge Logic (Translated from Python)
+            mergeBtn.addEventListener('click', () => {
+                logConsole.innerHTML = ''; // clear log
+                log("Starting merge process...");
+
+                const subJoinKey = subKeySelect.value;
+                const revJoinKey = revKeySelect.value;
+                const selectedSubCols = getListValues('subSelected');
+                const selectedRevCols = getListValues('revSelected');
+                const expectedRoles = ['1AC', '2AC', '3AC'];
+
+                if (!subJoinKey || !revJoinKey) {
+                    log("Join keys are missing. Please check your files.", "error");
+                    return;
+                }
+
+                log(`Using Submission ID: '${subJoinKey}', Review ID: '${revJoinKey}'`);
+
+                // 1. Filter submissions
+                const validSubmissions = subData.filter(row => {
+                    const hasId = row[subJoinKey] !== undefined && String(row[subJoinKey]).trim() !== '';
+                    const hasTitle = row['Title'] !== undefined && String(row['Title']).trim() !== '';
+                    return hasId && hasTitle;
+                });
+                log(`Found ${validSubmissions.length} valid submissions (non-empty ID and Title)`);
+
+                // 2. Filter reviews
+                const validReviews = revData.filter(row => {
+                    const hasId = row[revJoinKey] !== undefined && String(row[revJoinKey]).trim() !== '';
+                    const hasTitle = row['Title'] !== undefined && String(row['Title']).trim() !== '';
+                    return hasId && hasTitle;
+                });
+                log(`Found ${validReviews.length} valid reviews`);
+
+                const mergedResults = [];
+                let rolesFound = { '1AC': 0, '2AC': 0, '3AC': 0 };
+
+                // 3. Process each submission
+                validSubmissions.forEach(subRow => {
+                    const paperId = String(subRow[subJoinKey]).trim();
+                    const subTitle = String(subRow['Title']).trim();
+
+                    // Construct base row with selected submission columns
+                    let mergedRow = {};
+                    selectedSubCols.forEach(col => {
+                        mergedRow[col] = subRow[col] !== undefined ? subRow[col] : '';
+                    });
+
+                    // Find matching reviews
+                    const matchingReviews = validReviews.filter(r => String(r[revJoinKey]).trim() === paperId);
+
+                    if (matchingReviews.length === 0) {
+                        log(`Warning: No reviews found for Paper ID ${paperId}`, 'warn');
+                        mergedResults.push(mergedRow);
+                        return;
+                    }
+
+                    let roleCounts = { '1AC': 0, '2AC': 0, '3AC': 0 };
+
+                    matchingReviews.forEach(revRow => {
+                        const revTitle = String(revRow['Title'] || '').trim();
+                        const role = revRow['Role'];
+
+                        if (subTitle !== revTitle) {
+                            log(`Title mismatch for Paper ID ${paperId}: '${subTitle}' != '${revTitle}'`, 'warn');
+                        }
+
+                        if (!expectedRoles.includes(role)) {
+                            // Python script skips unexpected roles. We do the same.
+                            return;
+                        }
+
+                        roleCounts[role]++;
+                        rolesFound[role]++;
+
+                        let roleLabel = roleCounts[role] === 1 ? role : `${role}_${roleCounts[role]}`;
+                        if (roleCounts[role] > 1) {
+                            log(`Info: Creating additional columns for ${roleLabel} (Paper ID ${paperId})`);
+                        }
+
+                        // Append review data
+                        selectedRevCols.forEach(col => {
+                            const colName = `[${roleLabel}] ${col}`;
+                            mergedRow[colName] = revRow[col] !== undefined ? revRow[col] : '';
+                        });
+                    });
+
+                    mergedResults.push(mergedRow);
+                });
+
+                log("--- Summary ---", "success");
+                log(`Total submissions processed: ${mergedResults.length}`, "success");
+                expectedRoles.forEach(r => log(`Total ${r} reviews attached: ${rolesFound[r]}`, "success"));
+
+                // 4. Generate and Download Excel
+                try {
+                    log("Exporting merged data to Excel...");
+                    const worksheet = XLSX.utils.json_to_sheet(mergedResults);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "Merged Submissions");
+                    XLSX.writeFile(workbook, "chi26c_submission_reviews_merged.xlsx");
+                    log("File downloaded successfully!", "success");
+                } catch (exportErr) {
+                    log(`Error exporting file: ${exportErr.message}`, "error");
+                }
+            });
+        });
+    </script>
+</body>
+</html>
