@@ -2979,7 +2979,7 @@ OUTPUT FORMAT (exact keys and order required):
         // }
 
         // 1. Try LLM Extraction first (if API key is available)
-        const BATCH_SIZE = 15;
+        const BATCH_SIZE = 20;
         const hasApiKey = storage.get('geminiApiKey');
 
         if (hasApiKey) {
@@ -3023,31 +3023,36 @@ OUTPUT FORMAT (exact keys and order required):
             const llmFailed = !llmResult ||
                              !llmResult.title ||
                              !llmResult.authors ||
-                             llmResult.title.length < 12;
+                             llmResult.title.trim().length < 12;
 
             if (llmFailed) {
                 const localExtracted = extractReferenceInfo(ref);
 
                 if (llmResult) {
-                    // Merge: prefer LLM data, fall back to local
+                    // Merge: prefer LLM data if valid, fall back to local
+                    const useLlmTitle = llmResult.title && llmResult.title.trim().length >= 12;
+                    const useLlmAuthors = !!llmResult.authors;
+
                     extractedRefs[index] = {
                         original: ref,
-                        title: llmResult.title || localExtracted.title,
-                        authors: llmResult.authors || localExtracted.authors,
+                        title: useLlmTitle ? llmResult.title : localExtracted.title,
+                        authors: useLlmAuthors ? llmResult.authors : localExtracted.authors,
                         doi: llmResult.doi || localExtracted.doi,
                         url: llmResult.url || localExtracted.url,
                         year: llmResult.year || localExtracted.year,
                         warnings: [],
-                        extractionMethod: (llmResult.title && llmResult.authors) ? 'llm' : 'local'
+                        extractionMethod: (useLlmTitle && useLlmAuthors) ? 'llm' : 'local_fallback'
                     };
                 } else {
-                    // No LLM result at all, use local entirely
+                    // No LLM result at all (e.g., no API key or total batch failure)
                     extractedRefs[index] = localExtracted;
                 }
             }
 
             // Validate and add warnings
             const finalRef = extractedRefs[index];
+            // Ensure warnings array exists
+            finalRef.warnings = finalRef.warnings || [];
             if (!finalRef.title) finalRef.warnings.push('Title could not be extracted');
             if (!finalRef.authors) finalRef.warnings.push('Authors could not be extracted');
         });
