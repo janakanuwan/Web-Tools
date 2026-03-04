@@ -144,7 +144,7 @@
 
 <script>
     function sanitizeBibtexKey(title, year) {
-        return title.toLowerCase().replace(/\W+/g, '').slice(0, 30) + year;
+        return String(title).toLowerCase().replace(/\W+/g, '').slice(0, 30) + year;
     }
 
     function escapeBibtex(value) {
@@ -181,15 +181,17 @@
     function mapRowToBibtex(row) {
         let entryType = 'article';
         // Use "Item Type" if available
-        const itemType = (row['Item Type'] || '').toLowerCase().trim();
+        const itemType = String(row['Item Type'] || '').toLowerCase().trim();
+        const meetingName = String(row['Meeting Name'] || '').trim();
+        const pubTitle = String(row['Publication Title'] || '').trim();
 
         if (itemType === 'book') {
             entryType = 'book';
         } else if (['conference paper', 'conferencepaper'].includes(itemType)) {
             entryType = 'inproceedings';
-        } else if (row['Meeting Name'] && row['Meeting Name'].trim()) { // Fallbacks if "Item Type" is not usable
+        } else if (meetingName) {
             entryType = 'inproceedings';
-        } else if (row['Publication Title'] && row['Publication Title'].trim()) {
+        } else if (pubTitle) {
             entryType = 'article';
         }
 
