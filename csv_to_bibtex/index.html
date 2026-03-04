@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSV to BibTeX Converter</title>
+    <title>Spreadsheet to BibTeX Converter</title>
     <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png"
           type="image/png">
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
     <style>
         :root {
             --primary-color: #4a6fa5;
@@ -130,28 +133,46 @@
     Home
 </a>
 
-<h1>CSV to BibTeX Converter</h1>
+<h1>Spreadsheet (CSV/Excel) to BibTeX Converter</h1>
 
 <div class="controls">
-    <label for="csvInput" class="custom-file-upload">Upload CSV File</label>
-    <input type="file" id="csvInput" accept=".csv">
+    <label for="fileInput" class="custom-file-upload">Upload CSV or Excel File</label>
+    <input type="file" id="fileInput" accept=".csv, .xlsx, .xls">
     <button onclick="downloadBibtex()">Download .bib File</button>
     <pre id="output"></pre>
 </div>
 
 <script>
     function sanitizeBibtexKey(title, year) {
-        return title.toLowerCase().replace(/\\W+/g, '').slice(0, 30) + year;
+        return title.toLowerCase().replace(/\W+/g, '').slice(0, 30) + year;
     }
 
     function escapeBibtex(value) {
-        return value.replace(/{/g, '\\{').replace(/}/g, '\\}').replace(/&/g, '\\&');
+        if (!value) return '';
+        return value.toString().replace(/{/g, '\\{').replace(/}/g, '\\}').replace(/&/g, '\\&');
+    }
+
+    function preserveCapitalization(text) {
+        if (!text) return '';
+        // Escape standard BibTeX characters first
+        const escapedText = escapeBibtex(text);
+
+        // Wrap words containing uppercase letters in braces
+        return escapedText.split(/\s+/).map(word => {
+            // If the word contains at least one uppercase letter (A-Z)
+            if (/[A-Z]/.test(word)) {
+                return `{${word}}`;
+            }
+            return word;
+        }).join(' ');
     }
 
     function formatPages(row) {
-        const pages = row['Pages'] || '';
-        const start = row['Start Page'] || pages.split('-')[0];
-        const end = row['End Page'] || (pages.includes('-') ? pages.split('-')[1] : null);
+        // Wrap the values in String() to handle numbers from Excel files safely
+        const pages = row['Pages'] ? String(row['Pages']) : '';
+        const start = row['Start Page'] ? String(row['Start Page']) : pages.split('-')[0];
+        const end = row['End Page'] ? String(row['End Page']) : (pages.includes('-') ? pages.split('-')[1] : null);
+
         if (start && end) return `${start}--${end}`;
         if (start) return start;
         return '';
@@ -161,113 +182,86 @@
         let entryType = 'article';
         // Use "Item Type" if available
         const itemType = (row['Item Type'] || '').toLowerCase().trim();
+
         if (itemType === 'book') {
             entryType = 'book';
         } else if (['conference paper', 'conferencepaper'].includes(itemType)) {
             entryType = 'inproceedings';
-        }
-        // Fallbacks if "Item Type" is not usable
-        else if (row['Meeting Name'] && row['Meeting Name'].trim()) {
+        } else if (row['Meeting Name'] && row['Meeting Name'].trim()) { // Fallbacks if "Item Type" is not usable
             entryType = 'inproceedings';
         } else if (row['Publication Title'] && row['Publication Title'].trim()) {
             entryType = 'article';
         }
 
-        const title = row['Document Title'] || row['Title'] || 'Untitled';
+        const titleRaw = row['Document Title'] || row['Title'] || 'Untitled';
+        const booktitleRaw = row['Conference Name'] || row['Meeting Name'] || '';
         const year = row['Publication Year'] || row['Year'] || '????';
-        const key = row['Key'] || sanitizeBibtexKey(title, year);
+        const key = row['Key'] || sanitizeBibtexKey(titleRaw, year);
 
+        // Map and escape fields immediately.
+        // Apply preserveCapitalization specifically to titles.
         const fields = {
-            author: row['Authors'] || row['Author'],
-            title: title,
-            journal: row['Publication Title'],
-            booktitle: row['Conference Name'] || row['Meeting Name'],
-            year: year,
-            volume: row['Volume'],
-            number: row['Issue'],
-            pages: formatPages(row),
-            doi: row['DOI'],
-            url: row['PDF Link'] || row['Url'] || row['URL'],
-            abstract: row['Abstract'] || row['Abstract Note'],
-            publisher: row['Publisher'],
-            isbn: row['ISBNs'] || row['ISBN'],
-            issn: row['ISSN'],
-            keywords: row['Author Keywords'] || row['Manual Tags'],
-            series: row['Series'],
-            note: row['Extra'],
+            author: escapeBibtex(row['Authors'] || row['Author']),
+            title: preserveCapitalization(titleRaw),
+            journal: escapeBibtex(row['Publication Title']),
+            booktitle: preserveCapitalization(booktitleRaw),
+            year: escapeBibtex(year),
+            volume: escapeBibtex(row['Volume']),
+            number: escapeBibtex(row['Issue']),
+            pages: escapeBibtex(formatPages(row)),
+            doi: escapeBibtex(row['DOI']),
+            url: escapeBibtex(row['PDF Link'] || row['Url'] || row['URL']),
+            abstract: escapeBibtex(row['Abstract'] || row['Abstract Note']),
+            publisher: escapeBibtex(row['Publisher']),
+            isbn: escapeBibtex(row['ISBNs'] || row['ISBN']),
+            issn: escapeBibtex(row['ISSN']),
+            keywords: escapeBibtex(row['Author Keywords'] || row['Manual Tags']),
+            series: escapeBibtex(row['Series']),
+            note: escapeBibtex(row['Extra']),
         };
 
-        // Remove empty and sanitize
+        // Remove empty fields and format.
         const cleaned = Object.entries(fields)
             .filter(([k, v]) => v && v.trim())
-            .map(([k, v]) => `  ${k} = {${escapeBibtex(v)}},`)
+            .map(([k, v]) => `  ${k} = {${v}},`)
             .join('\n');
 
         return `@${entryType}{${key},\n${cleaned}\n}`;
     }
 
-
     let bibtexEntries = [];
     let originalFileName = "references.bib";
 
-    document.getElementById('csvInput').addEventListener('change', function (e) {
+    // event listener to handle Excel and CSV via SheetJS
+    document.getElementById('fileInput').addEventListener('change', function (e) {
         const file = e.target.files[0];
         if (!file) return;
 
-        originalFileName = file.name.replace(/\.csv$/i, '') + '.bib';
+        // Set output filename based on input
+        originalFileName = file.name.replace(/\.[^/.]+$/, "") + '.bib';
 
         const reader = new FileReader();
         reader.onload = function (event) {
-            const text = event.target.result;
-            const rows = parseCSV(text);
+            // Read data as ArrayBuffer for SheetJS
+            const data = new Uint8Array(event.target.result);
+
+            // Parse workbook
+            const workbook = XLSX.read(data, {type: 'array'});
+
+            // Get first worksheet
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+
+            // Convert worksheet to JSON array (automatically handles CSV rules & Excel formats)
+            const rows = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
+
             bibtexEntries = rows.map(mapRowToBibtex);
             document.getElementById('output').textContent = bibtexEntries.join('\n\n');
         };
-        reader.readAsText(file);
+
+        // Use readAsArrayBuffer to support binary Excel files
+        reader.readAsArrayBuffer(file);
     });
-
-    function parseCSV(text) {
-        const rows = [];
-        const lines = text.trim().split('\n');
-
-        const headers = parseCSVRow(lines[0]);
-
-        for (let i = 1; i < lines.length; i++) {
-            const rowValues = parseCSVRow(lines[i]);
-            const row = {};
-            headers.forEach((header, idx) => {
-                row[header.trim()] = rowValues[idx] ? rowValues[idx].trim() : '';
-            });
-            rows.push(row);
-        }
-        return rows;
-    }
-
-    function parseCSVRow(line) {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            const nextChar = line[i + 1];
-
-            if (char === '"' && inQuotes && nextChar === '"') {
-                current += '"';
-                i++; // skip next quote
-            } else if (char === '"') {
-                inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-                result.push(current);
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        result.push(current);
-        return result;
-    }
-
 
     function downloadBibtex() {
         if (!bibtexEntries.length) {
@@ -284,9 +278,11 @@
     }
 </script>
 
-
 <p class="subtitle">
-    <strong>Note:</strong> This is a static web page that <strong>run locally</strong> in your browser — <em>no data is sent to any server</em>. If preferred, you can also download them as HTML files and run them offline or clone from <a href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT License).
+    <strong>Note:</strong> This is a static web page that <strong>runs locally</strong> in your browser — <em>no data is
+    sent to any server</em>. If preferred, you can also download it as an HTML file and run it offline or clone from <a
+        href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT
+    License).
 </p>
 
 </body>
