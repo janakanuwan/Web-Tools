@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent Qualitative Analysis</title>
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { color: var(--text-color); line-height: 1.6; padding: 20px; max-width: 1200px; margin: 0 auto; background-color: #f8f9fa; }
+        h1 { color: var(--primary-color); margin-bottom: 5px; text-align: center; }
+        h5 { text-align: center; font-weight: normal; color: #666; margin-bottom: 25px; }
+
+        .container { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 900px) { .container { grid-template-columns: minmax(350px, 40%) 1fr; } }
+
+        .home-menu {
+            display: flex; align-items: center; position: absolute; top: 20px; left: 20px;
+            background-color: white; padding: 8px 12px; border-radius: 6px;
+            box-shadow: var(--card-shadow); transition: all 0.3s ease; text-decoration: none; color: var(--primary-color);
+        }
+        .home-menu:hover { background-color: var(--primary-color); color: white; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        .home-menu .icon { margin-right: 8px; display: flex; align-items: center; }
+
+        .controls, .results { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); }
+
+        h2 { font-size: 1.2rem; margin-bottom: 15px; color: var(--primary-color); border-bottom: 2px solid var(--secondary-color); padding-bottom: 5px; }
+        h3 { font-size: 1rem; color: #444; margin-bottom: 10px; margin-top: 15px;}
+
+        .section { margin-bottom: 25px; }
+        .section label { font-weight: 600; display: block; margin-bottom: 5px; font-size: 0.9rem;}
+
+        .file-input-container { position: relative; margin-bottom: 10px; }
+        .custom-file-upload {
+            display: block; width: 100%; padding: 10px 15px; background-color: var(--primary-color); color: white;
+            text-align: center; cursor: pointer; border-radius: 4px; transition: background-color 0.3s; font-weight: 500;
+        }
+        .custom-file-upload:hover { background-color: #3b5a8c; }
+        input[type="file"] { display: none; }
+
+        input[type="text"], input[type="password"] {
+            width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 10px; font-size: 0.9rem;
+        }
+
+        .status-message { font-size: 0.85rem; color: #666; margin-top: 5px; }
+        .status-message.success { color: #2e7d32; }
+        .status-message.error { color: var(--accent-color); }
+
+        .action-button {
+            width: 100%; padding: 12px; background-color: var(--primary-color); color: white; border: none; border-radius: 4px;
+            cursor: pointer; font-size: 1.1rem; font-weight: 600; transition: background-color 0.3s; margin-top: 10px;
+        }
+        .action-button:hover:not(:disabled) { background-color: #3b5a8c; }
+        .action-button:disabled { background-color: var(--border-color); cursor: not-allowed; }
+        .action-button.secondary { background-color: #2e7d32; }
+        .action-button.secondary:hover:not(:disabled) { background-color: #1b5e20; }
+
+        .log-container {
+            background: #1e1e1e; color: #a9b7c6; padding: 15px; border-radius: 4px; font-family: monospace;
+            font-size: 0.85rem; height: 350px; overflow-y: auto; margin-top: 15px; margin-bottom: 20px;
+        }
+        .log-line { margin-bottom: 4px; }
+        .log-line.warn { color: #ffc66d; }
+        .log-line.error { color: #cc666e; }
+        .log-line.success { color: #629755; }
+        .log-line.info { color: #5bc0de; }
+
+        .agent-config { background: #fafafa; padding: 15px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 15px; }
+
+
+        .review-section {
+            margin-top: 25px;
+            border-top: 2px solid var(--secondary-color);
+            padding-top: 15px;
+            display: none; /* Hidden until data is ready */
+        }
+        .review-table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: var(--secondary-color);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .conflict-row {
+            background-color: #fff3cd; /* Light yellow warning for conflicts */
+        }
+        .editable-input {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 0.85rem;
+        }
+        .metric-display {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+    </style>
+</head>
+<body>
+    <a href="../" class="home-menu">
+        <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        </span>
+        <span>Back to Home</span>
+    </a>
+
+    <h1>Multi-Agent Qualitative Analysis Tool</h1>
+    <h5>Automated Thematic Analysis & Inter-Rater Reliability Computation</h5>
+
+    <div class="container">
+        <div class="controls">
+            <div class="section">
+                <h2>1. Upload Data</h2>
+                <div class="file-input-container">
+                    <label for="dataInput" class="custom-file-upload">Upload Transcript (Excel/CSV)</label>
+                    <input type="file" id="dataInput" accept=".xlsx,.xls,.csv">
+                    <div id="dataStatus" class="status-message">Requires columns: Speaker, Utterance. (Time is optional).</div>
+                </div>
+                <div class="file-input-container" style="margin-top: 15px;">
+                    <label for="codebookInput" class="custom-file-upload">Upload Codebook (Optional)</label>
+                    <input type="file" id="codebookInput" accept=".xlsx,.xls,.csv">
+                    <div id="codebookStatus" class="status-message">Requires columns: Name, Description.</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>2. LLM Agent Configuration</h2>
+
+                <div class="agent-config">
+                    <h3>Agent 1</h3>
+                    <label>API Endpoint (OpenAI format)</label>
+                    <input type="text" id="a1Endpoint" value="https://api.poe.com/v1/chat/completions">
+                    <label>Model Name</label>
+                    <input type="text" id="a1Model" value="Gemini-3.1-pro">
+                    <label>API Key</label>
+                    <input type="password" id="a1Key" placeholder="Enter API Key...">
+                </div>
+
+                <div class="agent-config">
+                    <h3>Agent 2</h3>
+                    <label>API Endpoint (OpenAI format)</label>
+                    <input type="text" id="a2Endpoint" value="https://api.poe.com/v1/chat/completions">
+                    <label>Model Name</label>
+                    <input type="text" id="a2Model" value="Claude-Sonnet-4.6">
+                    <label>API Key</label>
+                    <input type="password" id="a2Key" placeholder="Enter API Key...">
+                </div>
+            </div>
+
+            <button id="runBtn" class="action-button" disabled>Run Thematic Analysis</button>
+        </div>
+
+        <div class="results">
+            <h2>Execution & Analysis Log</h2>
+            <div id="logConsole" class="log-container">
+                <div class="log-line">Ready. Waiting for data upload.</div>
+            </div>
+
+            <div id="reviewSection" class="review-section">
+                <h2>3. Manual Review & Consensus</h2>
+                <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">
+                    Edit the themes assigned by Agent 1 and Agent 2 below to fix minor wording discrepancies, then recalculate the Kappa score.
+                </p>
+
+                <div id="kappaDisplay" class="metric-display">Kappa Score: --</div>
+
+                <div class="review-table-container">
+                    <table id="reviewTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 40%;">Evidence (Quote)</th>
+                                <th style="width: 25%;">Agent 1 Theme</th>
+                                <th style="width: 25%;">Agent 2 Theme</th>
+                                <th style="width: 10%;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reviewTableBody">
+                            </tbody>
+                    </table>
+                </div>
+
+                <button id="recalcBtn" class="action-button">Recalculate Kappa & Save Updates</button>
+            </div>
+
+            <button id="exportBtn" class="action-button secondary" style="display: none;">Download Excel Report</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let transcriptData = [];
+            let codebookData = [];
+            let finalResults = { agent1: [], agent2: [], merged: [], summary: [] };
+
+            const ui = {
+                dataInput: document.getElementById('dataInput'),
+                codebookInput: document.getElementById('codebookInput'),
+                dataStatus: document.getElementById('dataStatus'),
+                codebookStatus: document.getElementById('codebookStatus'),
+                runBtn: document.getElementById('runBtn'),
+                exportBtn: document.getElementById('exportBtn'),
+                logConsole: document.getElementById('logConsole'),
+
+                reviewSection: document.getElementById('reviewSection'),
+                reviewTableBody: document.getElementById('reviewTableBody'),
+                recalcBtn: document.getElementById('recalcBtn'),
+                kappaDisplay: document.getElementById('kappaDisplay'),
+            };
+
+            function log(msg, type = '') {
+                const el = document.createElement('div');
+                el.className = `log-line ${type}`;
+                const time = new Date().toLocaleTimeString();
+                el.textContent = `[${time}] > ${msg}`;
+                ui.logConsole.appendChild(el);
+                ui.logConsole.scrollTop = ui.logConsole.scrollHeight;
+            }
+
+            function readFile(file, isCodebook) {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = new Uint8Array(evt.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const json = XLSX.utils.sheet_to_json(sheet);
+
+                        if (isCodebook) {
+                            codebookData = json;
+                            ui.codebookStatus.textContent = `Loaded ${json.length} codes.`;
+                            ui.codebookStatus.className = 'status-message success';
+                            log(`Codebook loaded: ${json.length} entries.`, 'success');
+                        } else {
+                            transcriptData = json;
+                            ui.dataStatus.textContent = `Loaded ${json.length} utterances.`;
+                            ui.dataStatus.className = 'status-message success';
+                            log(`Transcript loaded: ${json.length} rows.`, 'success');
+                            ui.runBtn.disabled = false;
+                        }
+                    } catch (err) {
+                        const statusEl = isCodebook ? ui.codebookStatus : ui.dataStatus;
+                        statusEl.textContent = `Error: ${err.message}`;
+                        statusEl.className = 'status-message error';
+                        log(`Error parsing file: ${err.message}`, 'error');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            ui.dataInput.addEventListener('change', (e) => { if (e.target.files[0]) readFile(e.target.files[0], false); });
+            ui.codebookInput.addEventListener('change', (e) => { if (e.target.files[0]) readFile(e.target.files[0], true); });
+
+            async function callLLM(endpoint, model, apiKey, systemPrompt, userPrompt) {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userPrompt }
+                        ],
+                        temperature: 0
+                    })
+                });
+
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                const data = await response.json();
+                return data.choices[0].message.content;
+            }
+
+            function parseLLMOutput(text) {
+                const results = [];
+                const lines = text.split('\n');
+                let currentTheme = "", currentSubtheme = "";
+                let currentCode = null;
+
+                lines.forEach(line => {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith("THEME:")) {
+                        currentTheme = trimmed.replace("THEME:", "").trim();
+                    } else if (trimmed.startsWith("Subtheme:")) {
+                        currentSubtheme = trimmed.replace("Subtheme:", "").trim();
+                    } else if (trimmed.startsWith("- Code:")) {
+                        currentCode = {
+                            Theme: currentTheme,
+                            Subtheme: currentSubtheme,
+                            Code: trimmed.replace("- Code:", "").trim(),
+                            Participant: "", Time: "", Evidence: ""
+                        };
+                        results.push(currentCode);
+                    } else if (trimmed.startsWith("Participant:") && currentCode) {
+                        currentCode.Participant = trimmed.replace("Participant:", "").trim();
+                    } else if (trimmed.startsWith("Time:") && currentCode) {
+                        currentCode.Time = trimmed.replace("Time:", "").trim();
+                    } else if (trimmed.startsWith("Evidence:") && currentCode) {
+                        currentCode.Evidence = trimmed.replace("Evidence:", "").trim();
+                    }
+                });
+                return results;
+            }
+
+            function renderReviewTable(mergedData) {
+                ui.reviewTableBody.innerHTML = ''; // Clear previous
+
+                mergedData.forEach((row, index) => {
+                    const tr = document.createElement('tr');
+                    const isConflict = row.Consensus === "Requires Review";
+                    if (isConflict) tr.className = 'conflict-row';
+
+                    tr.innerHTML = `
+                        <td>${row.Evidence}</td>
+                        <td><input type="text" class="editable-input a1-input" data-index="${index}" value="${row.Theme || ''}"></td>
+                        <td><input type="text" class="editable-input a2-input" data-index="${index}" value="${row.Agent2_Code || 'N/A'}"></td>
+                        <td class="status-cell">${isConflict ? '⚠️ Review' : '✅ Match'}</td>
+                    `;
+                    ui.reviewTableBody.appendChild(tr);
+                });
+                ui.reviewSection.style.display = 'block';
+            }
+
+            function updateKappaUI(irrData) {
+                ui.kappaDisplay.innerHTML = `Current Kappa Score: ${irrData.kappa} <span style="font-size:0.8rem; font-weight:normal; display:block; color:#555;">(${irrData.agreement})</span>`;
+            }
+
+            ui.recalcBtn.addEventListener('click', () => {
+                log("Recalculating based on manual human review...", "info");
+
+                let agree = 0;
+                let total = finalResults.merged.length;
+
+                // Iterate through table rows to update data and calculate matches
+                const rows = ui.reviewTableBody.querySelectorAll('tr');
+                rows.forEach((tr, index) => {
+                    const a1Val = tr.querySelector('.a1-input').value.trim();
+                    const a2Val = tr.querySelector('.a2-input').value.trim();
+
+                    // Update the underlying data model
+                    finalResults.merged[index].Theme = a1Val;
+                    finalResults.merged[index].Agent2_Code = a2Val;
+
+                    // Check for exact string match after human edit
+                    if (a1Val.toLowerCase() === a2Val.toLowerCase() && a1Val !== "" && a1Val !== "N/A") {
+                        agree++;
+                        finalResults.merged[index].Consensus = "Yes";
+                        tr.classList.remove('conflict-row');
+                        tr.querySelector('.status-cell').textContent = '✅ Match';
+                    } else {
+                        finalResults.merged[index].Consensus = "Requires Review";
+                        tr.classList.add('conflict-row');
+                        tr.querySelector('.status-cell').textContent = '⚠️ Review';
+                    }
+                });
+
+                // Recalculate formula
+                const po = agree / (total || 1);
+                const pe = 0.1; // Baseline probability
+                const kappa = Math.max(0, (po - pe) / (1 - pe)).toFixed(2);
+
+                const newSummary = {
+                    kappa: kappa,
+                    agreement: `${agree} out of ${total} coded utterances match.`
+                };
+
+                // Update global summary for Excel export
+                finalResults.summary = [{
+                    Metric: "Cohen's Kappa (Human Reviewed)", Value: newSummary.kappa, Notes: newSummary.agreement
+                }];
+
+                updateKappaUI(newSummary);
+                log(`Recalculation complete. New Kappa: ${kappa}`, "success");
+            });
+
+            function calculateIRR(parsed1, parsed2) {
+                // Approximate Cohen's Kappa based on shared evidence utterances
+                let agree = 0;
+                let total = Math.max(parsed1.length, parsed2.length) || 1;
+
+                parsed1.forEach(item1 => {
+                    const match = parsed2.find(item2 => item2.Evidence.includes(item1.Evidence.substring(0, 20)));
+                    if (match && match.Theme === item1.Theme) agree++;
+                });
+
+                const po = agree / total;
+                const pe = 0.1; // Baseline probability for open-coding chance agreement
+                const kappa = (po - pe) / (1 - pe);
+
+                return {
+                    kappa: Math.max(0, kappa).toFixed(2),
+                    agreement: `${agree} out of ${total} coded utterances matched on broader theme.`
+                };
+            }
+
+            function mergeResults(parsed1, parsed2) {
+                const merged = [];
+                // Simple consensus: include everything, mark conflicts
+                parsed1.forEach(i1 => {
+                    const match = parsed2.find(i2 => i2.Evidence.includes(i1.Evidence.substring(0, 20)));
+                    merged.push({
+                        ...i1,
+                        Sentiment: "Neutral", // Default placeholder
+                        Agent1_Code: i1.Code,
+                        Agent2_Code: match ? match.Code : "N/A",
+                        Consensus: match ? "Yes" : "Requires Review"
+                    });
+                });
+                return merged;
+            }
+
+            ui.runBtn.addEventListener('click', async () => {
+                const a1 = { ep: document.getElementById('a1Endpoint').value, mod: document.getElementById('a1Model').value, key: document.getElementById('a1Key').value };
+                const a2 = { ep: document.getElementById('a2Endpoint').value, mod: document.getElementById('a2Model').value, key: document.getElementById('a2Key').value };
+
+                if (!a1.key || !a2.key) { log("Missing API Keys. Please provide keys for both agents.", "error"); return; }
+
+                ui.runBtn.disabled = true;
+                log("Starting multi-agent analysis...", "info");
+
+                // Filter and format transcript
+                let transcriptStr = "Transcript Data:\n";
+                transcriptData.forEach((row, i) => {
+                    const speaker = row.Speaker || "Unknown";
+                    if (!speaker.match(/interviewer|moderator/i)) {
+                        transcriptStr += `[ID: ${i}] Speaker: ${speaker} | Time: ${row['Speaking Time'] || ''} | Utterance: ${row.Utterance}\n`;
+                    }
+                });
+
+                let codebookStr = codebookData.length > 0 ? "Provided Codebook:\n" + JSON.stringify(codebookData) : "No codebook provided. Perform inductive coding.";
+
+                const systemPrompt = `You are an expert qualitative researcher. Analyze the transcript. Remove greetings and filler.
+                ${codebookStr}
+                Output strictly in this format, generating as many themes/codes as necessary:
+                THEME: <Theme Name>
+                  Subtheme: <Subtheme Name>
+                    - Code: <Code Label>
+                      Participant: <Speaker>
+                      Time: <Time>
+                      Evidence: <Exact quote from utterance>`;
+
+                try {
+                    log(`Prompting Agent 1 (${a1.mod})...`);
+                    const res1 = await callLLM(a1.ep, a1.mod, a1.key, systemPrompt, transcriptStr);
+                    log(`Agent 1 finished successfully.`, "success");
+
+                    log(`Prompting Agent 2 (${a2.mod})...`);
+                    const res2 = await callLLM(a2.ep, a2.mod, a2.key, systemPrompt, transcriptStr);
+                    log(`Agent 2 finished successfully.`, "success");
+
+                    log(`Parsing outputs and calculating IRR...`, "info");
+
+                    const parsed1 = parseLLMOutput(res1);
+                    const parsed2 = parseLLMOutput(res2);
+
+                    const irrData = calculateIRR(parsed1, parsed2);
+                    const mergedData = mergeResults(parsed1, parsed2);
+
+                    finalResults.agent1 = parsed1;
+                    finalResults.agent2 = parsed2;
+                    finalResults.merged = mergedData;
+                    finalResults.summary = [{
+                        Metric: "Cohen's Kappa (Estimated)", Value: irrData.kappa, Notes: irrData.agreement
+                    }];
+
+                    updateKappaUI(irrData);
+                    renderReviewTable(mergedData);
+
+                    log(`Analysis Complete. Estimated Kappa: ${irrData.kappa}`, "success");
+                    ui.exportBtn.style.display = 'block';
+
+                } catch (error) {
+                    log(`Analysis failed: ${error.message}`, "error");
+                } finally {
+                    ui.runBtn.disabled = false;
+                }
+            });
+
+            ui.exportBtn.addEventListener('click', () => {
+                log("Generating Excel Report...");
+                try {
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(finalResults.merged), "Merged_Consensus");
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(finalResults.agent1), "Agent_1_Raw");
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(finalResults.agent2), "Agent_2_Raw");
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(finalResults.summary), "IRR_Summary");
+
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    XLSX.writeFile(wb, `qualitative_analysis_${dateStr}.xlsx`);
+                    log("Excel file downloaded.", "success");
+                } catch (err) {
+                    log(`Export error: ${err.message}`, "error");
+                }
+            });
+        });
+    </script>
+
+    <p class="subtitle">
+        <strong>Note:</strong> This is a static web page that <strong>runs locally</strong> in your browser — <em>Qualitative Data is sent to LLM for analysis</em>.
+        If preferred, you can also download it as an HTML file and run it offline or clone from <a
+            href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT
+        License).
+    </p>
+</body>
+</html>
