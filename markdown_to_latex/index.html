@@ -255,7 +255,11 @@
         // --- Parser Core Logic ---
         function processInline(text) {
             // 1. Clean escaped markdown characters commonly found in copied text
-            let res = text.replace(/\\([.\-*_])/g, '$1');
+            // (Added '%' to this list so we can safely normalize it before escaping)
+            let res = text.replace(/\\([.\-*_%])/g, '$1');
+
+            // 1.5 Escape percentage symbols for LaTeX
+            res = res.replace(/%/g, '\\%');
 
             // 2. Bold (handle **text**)
             res = res.replace(/\*\*(.*?)\*\*/g, '\\textbf{$1}');
