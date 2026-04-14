@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Markdown to LaTeX Converter</title>
-    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png"
+          type="image/png">
     <style>
         :root {
             --primary-color: #4a6fa5;
@@ -13,7 +14,7 @@
             --text-color: #333;
             --light-gray: #f5f5f5;
             --border-color: #ddd;
-            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            --card-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
 
         * {
@@ -76,10 +77,14 @@
             background-color: var(--primary-color);
             color: white;
             transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .home-menu .icon { margin-right: 8px; display: flex; align-items: center; }
+        .home-menu .icon {
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+        }
 
         .controls, .results {
             background-color: white;
@@ -143,8 +148,14 @@
             transition: background-color 0.3s;
         }
 
-        .action-button:hover:not(:disabled) { background-color: #3b5a8c; }
-        .action-button:disabled { background-color: var(--border-color); cursor: not-allowed; }
+        .action-button:hover:not(:disabled) {
+            background-color: #3b5a8c;
+        }
+
+        .action-button:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+        }
 
         .button-group {
             display: flex;
@@ -159,12 +170,28 @@
             background-color: #6c757d;
         }
 
-        .btn-secondary:hover:not(:disabled) { background-color: #5a6268; }
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #5a6268;
+        }
 
-        .status-message { font-size: 0.85rem; margin-top: 10px; min-height: 20px; font-weight: 500;}
-        .status-message.success { color: #2e7d32; }
-        .status-message.error { color: var(--accent-color); }
-        .status-message.info { color: var(--primary-color); }
+        .status-message {
+            font-size: 0.85rem;
+            margin-top: 10px;
+            min-height: 20px;
+            font-weight: 500;
+        }
+
+        .status-message.success {
+            color: #2e7d32;
+        }
+
+        .status-message.error {
+            color: var(--accent-color);
+        }
+
+        .status-message.info {
+            color: var(--primary-color);
+        }
 
         .subtitle {
             margin-top: 30px;
@@ -175,260 +202,309 @@
     </style>
 </head>
 <body>
-    <a href="../" class="home-menu">
+<a href="../" class="home-menu">
         <span class="icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline
+                    points="9 22 9 12 15 12 15 22"></polyline>
             </svg>
         </span>
-        <span>Back to Home</span>
-    </a>
+    <span>Back to Home</span>
+</a>
 
-    <h1>Markdown to LaTeX Converter</h1>
-    <h5>Convert Markdown headings, tables, and lists into academic-ready LaTeX code.</h5>
+<h1>Markdown to LaTeX Converter</h1>
+<h5>Convert Markdown headings, tables, and lists into academic-ready LaTeX code.</h5>
 
-    <div class="container">
-        <div class="controls">
-            <h2>
-                1. Input Markdown
-                <span style="font-size: 0.8rem; font-weight: 400; color: #666;">Auto-converts on typing</span>
-            </h2>
-            <textarea id="mdInput" class="input-area" placeholder="Paste your Markdown here...&#10;&#10;## 3\. Theoretical Framework&#10;&#10;* *Perceptual co-location*: intervention delivered...&#10;* **Architectural independence**: system operates...&#10;&#10;| Pattern | Exploit |&#10;| --- | --- |&#10;| Nagging | Fatigue |"></textarea>
+<div class="container">
+    <div class="controls">
+        <h2>
+            1. Input Markdown
+            <span style="font-size: 0.8rem; font-weight: 400; color: #666;">Auto-converts on typing</span>
+        </h2>
+        <textarea id="mdInput" class="input-area"
+                  placeholder="Paste your Markdown here...&#10;&#10;## 3\. Theoretical Framework&#10;&#10;* *Perceptual co-location*: intervention delivered...&#10;* **Architectural independence**: system operates...&#10;&#10;| Pattern | Exploit |&#10;| --- | --- |&#10;| Nagging | Fatigue |"></textarea>
 
-            <div class="button-group">
-                <button id="convertBtn" class="action-button">Convert Now</button>
-                <button id="clearBtn" class="action-button btn-secondary">Clear</button>
-            </div>
-            <div id="inputStatus" class="status-message info">Ready for input.</div>
+        <div class="button-group">
+            <button id="convertBtn" class="action-button">Convert Now</button>
+            <button id="clearBtn" class="action-button btn-secondary">Clear</button>
         </div>
-
-        <div class="results">
-            <h2>2. LaTeX Output</h2>
-            <textarea id="latexOutput" class="output-area" readonly placeholder="% Your generated LaTeX will appear here..."></textarea>
-
-            <button id="copyBtn" class="action-button" disabled>Copy to Clipboard</button>
-            <div id="outputStatus" class="status-message"></div>
-        </div>
+        <div id="inputStatus" class="status-message info">Ready for input.</div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const mdInput = document.getElementById('mdInput');
-            const latexOutput = document.getElementById('latexOutput');
-            const convertBtn = document.getElementById('convertBtn');
-            const copyBtn = document.getElementById('copyBtn');
-            const clearBtn = document.getElementById('clearBtn');
-            const outputStatus = document.getElementById('outputStatus');
-            const inputStatus = document.getElementById('inputStatus');
+    <div class="results">
+        <h2>2. LaTeX Output</h2>
+        <textarea id="latexOutput" class="output-area" readonly
+                  placeholder="% Your generated LaTeX will appear here..."></textarea>
 
-            // --- Parser Core Logic ---
-            function processInline(text) {
-                // 1. Clean escaped markdown characters commonly found in copied text
-                let res = text.replace(/\\([.\-*_])/g, '$1');
+        <button id="copyBtn" class="action-button" disabled>Copy to Clipboard</button>
+        <div id="outputStatus" class="status-message"></div>
+    </div>
+</div>
 
-                // 2. Bold (handle **text**)
-                res = res.replace(/\*\*(.*?)\*\*/g, '\\textbf{$1}');
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const mdInput = document.getElementById('mdInput');
+        const latexOutput = document.getElementById('latexOutput');
+        const convertBtn = document.getElementById('convertBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const outputStatus = document.getElementById('outputStatus');
+        const inputStatus = document.getElementById('inputStatus');
 
-                // 3. Italic (handle *text* and _text_)
-                res = res.replace(/\*([^\*]+?)\*/g, '\\textit{$1}');
-                res = res.replace(/_([^_]+?)_/g, '\\textit{$1}');
+        // --- Parser Core Logic ---
+        function processInline(text) {
+            // 1. Clean escaped markdown characters commonly found in copied text
+            let res = text.replace(/\\([.\-*_])/g, '$1');
 
-                return res;
-            }
+            // 2. Bold (handle **text**)
+            res = res.replace(/\*\*(.*?)\*\*/g, '\\textbf{$1}');
 
-            function parseTableRow(line) {
-                let trimmed = line.trim();
-                if (trimmed.startsWith('|')) trimmed = trimmed.substring(1);
-                if (trimmed.endsWith('|')) trimmed = trimmed.substring(0, trimmed.length - 1);
-                return trimmed.split('|').map(s => s.trim());
-            }
+            // 3. Italic (handle *text* and _text_)
+            res = res.replace(/\*([^\*]+?)\*/g, '\\textit{$1}');
+            res = res.replace(/_([^_]+?)_/g, '\\textit{$1}');
 
-            function convertToLatex(md) {
-                if (!md || md.trim() === '') return '';
+            // 4. URLs (e.g., [Text](https://...) -> \href{https://...}{Text})
+            // Uses negative lookbehind (?<!\!) to ensure we don't accidentally parse inline images here
+            res = res.replace(/(?<!\!)\[([^\]]+)\]\(([^)]+)\)/g, '\\href{$2}{$1}');
 
-                const lines = md.split('\n');
-                const out = [];
-                const state = { list: null, table: false };
+            // 5. Cross-referencing (e.g., [fig:image1], [tab:data] -> \ref{fig:image1})
+            // Looks for standard LaTeX reference prefixes
+            res = res.replace(/\[((?:fig|tab|sec|eq|alg):[^\]]+)\]/gi, '\\ref{$1}');
 
-                const closeBlocks = () => {
-                    if (state.list) {
-                        out.push(`\\end{${state.list}}`);
-                        state.list = null;
-                    }
-                    if (state.table) {
-                        out.push(`\\end{tabular}\n\\end{table}`);
-                        state.table = false;
-                    }
-                };
+            // 6. Citations (e.g., [1], [Author, 2020] -> \cite{1})
+            // Grabs remaining bracketed items that contain typical citation characters (alphanumeric, hyphens, commas)
+            res = res.replace(/\[([a-zA-Z0-9,\s\-:]+)\]/g, '\\cite{$1}');
 
-                for (let i = 0; i < lines.length; i++) {
-                    let line = lines[i].trim();
+            return res;
+        }
 
-                    // Blank lines
-                    if (line === '') {
-                        closeBlocks();
-                        // Avoid multiple consecutive blank lines in LaTeX
-                        if (out.length > 0 && out[out.length - 1] !== '') {
-                            out.push('');
-                        }
-                        continue;
-                    }
+        function parseTableRow(line) {
+            let trimmed = line.trim();
+            if (trimmed.startsWith('|')) trimmed = trimmed.substring(1);
+            if (trimmed.endsWith('|')) trimmed = trimmed.substring(0, trimmed.length - 1);
+            return trimmed.split('|').map(s => s.trim());
+        }
 
-                    // Headings (#, ##, ###)
-                    const hMatch = line.match(/^(#{1,3})\s+(.*)$/);
-                    if (hMatch) {
-                        closeBlocks();
-                        const level = hMatch[1].length;
-                        const content = processInline(hMatch[2]);
+        function convertToLatex(md) {
+            if (!md || md.trim() === '') return '';
 
-                        if (level === 1) out.push(`\\section{${content}}`);
-                        else if (level === 2) out.push(`\\subsection{${content}}`);
-                        else if (level === 3) out.push(`\\subsubsection{${content}}`);
-                        continue;
-                    }
+            const lines = md.split('\n');
+            const out = [];
+            const state = {list: null, table: false};
 
-                    // Tables
-                    const isTableLine = line.includes('|') && line.length > 2;
-                    if (isTableLine && (line.startsWith('|') || /\|/.test(line))) {
-                        const isSeparator = line.replace(/\|/g, '').replace(/-/g, '').replace(/ /g, '').length === 0;
+            const closeBlocks = () => {
+                if (state.list) {
+                    out.push(`\\end{${state.list}}`);
+                    state.list = null;
+                }
+                if (state.table) {
+                    out.push(`\\end{tabular}\n\\end{table}`);
+                    state.table = false;
+                }
+            };
 
-                        if (!state.table) {
-                            if (!isSeparator) {
-                                closeBlocks();
-                                const cells = parseTableRow(line);
-                                const cols = cells.length;
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
 
-                                // Dynamic width logic (Matching example requirements)
-                                let colFormat = "";
-                                if (cols === 5) {
-                                    colFormat = "|p{2.5cm}|p{3.5cm}|p{3cm}|p{3cm}|p{3cm}|";
-                                } else {
-                                    colFormat = "|" + Array(cols).fill("p{3cm}").join("|") + "|";
-                                }
-
-                                out.push(`\\begin{table}[htbp]\n\\centering\n\\small\n\\begin{tabular}{${colFormat}}\n\\hline`);
-                                out.push(`${cells.map(processInline).join(' & ')} \\\\ \\hline`);
-                                state.table = true;
-                            }
-                        } else {
-                            if (!isSeparator) {
-                                const cells = parseTableRow(line);
-                                out.push(`${cells.map(processInline).join(' & ')} \\\\ \\hline`);
-                            }
-                        }
-                        continue;
-                    } else if (state.table) {
-                        closeBlocks();
-                    }
-
-                    // Unordered Lists
-                    const ulMatch = line.match(/^[\*\-]\s+(.*)$/);
-                    if (ulMatch) {
-                        if (state.list !== 'itemize') {
-                            closeBlocks();
-                            out.push('\\begin{itemize}');
-                            state.list = 'itemize';
-                        }
-                        out.push(`    \\item ${processInline(ulMatch[1])}`);
-                        continue;
-                    }
-
-                    // Ordered Lists
-                    const olMatch = line.match(/^\d+[\.\\]*\s+(.*)$/);
-                    if (olMatch) {
-                        if (state.list !== 'enumerate') {
-                            closeBlocks();
-                            out.push('\\begin{enumerate}');
-                            state.list = 'enumerate';
-                        }
-                        out.push(`    \\item ${processInline(olMatch[1])}`);
-                        continue;
-                    }
-
-                    // Close lists if we hit normal text
-                    if (state.list) closeBlocks();
-
-                    // Normal Text
-                    out.push(processInline(line));
+                // Check for and ignore markdown image/link reference definitions
+                // e.g., [image1]: <data:image/png;base64, XXX>
+                const refDefMatch = line.match(/^\[([^\]]+)\]:\s*(.+)$/);
+                if (refDefMatch) {
+                    closeBlocks();
+                    continue; // Skip outputting these lines to LaTeX
                 }
 
-                // Clean up any unclosed blocks at EOF
-                closeBlocks();
-                return out.join('\n');
-            }
-
-            // --- UI Interaction Logic ---
-            function executeConversion() {
-                const mdText = mdInput.value;
-                if (!mdText.trim()) {
-                    latexOutput.value = '';
-                    copyBtn.disabled = true;
-                    inputStatus.textContent = 'Awaiting input...';
-                    inputStatus.className = 'status-message';
-                    return;
+                // Blank lines
+                if (line === '') {
+                    closeBlocks();
+                    // Avoid multiple consecutive blank lines in LaTeX
+                    if (out.length > 0 && out[out.length - 1] !== '') {
+                        out.push('');
+                    }
+                    continue;
                 }
 
-                try {
-                    const result = convertToLatex(mdText);
-                    latexOutput.value = result;
-                    copyBtn.disabled = false;
-                    inputStatus.textContent = 'Successfully converted!';
-                    inputStatus.className = 'status-message success';
+                // Headings (#, ##, ###)
+                const hMatch = line.match(/^(#{1,3})\s+(.*)$/);
+                if (hMatch) {
+                    closeBlocks();
+                    const level = hMatch[1].length;
+                    const content = processInline(hMatch[2]);
+
+                    if (level === 1) out.push(`\\section{${content}}`);
+                    else if (level === 2) out.push(`\\subsection{${content}}`);
+                    else if (level === 3) out.push(`\\subsubsection{${content}}`);
+                    continue;
+                }
+
+                // Images (Block Level)
+                // Matches Reference style: ![][image1] OR Inline style: ![alt](url)
+                const imgRefMatch = line.match(/^!\[([^\]]*)\]\[([^\]]+)\]$/);
+                const imgInlineMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+
+                if (imgRefMatch || imgInlineMatch) {
+                    closeBlocks();
+                    let alt = imgRefMatch ? imgRefMatch[1] : imgInlineMatch[1];
+                    let refOrUrl = imgRefMatch ? imgRefMatch[2] : imgInlineMatch[2];
+
+                    // Extract the core identifier to formulate standard LaTeX path "figures/image.png"
+                    let baseName = refOrUrl.split('/').pop().split('.')[0];
+                    let filename = `figures/${baseName}.png`;
+                    let caption = alt || baseName;
+                    let label = baseName;
+
+                    out.push(`\\begin{figure}[htbp]`);
+                    out.push(`  \\centering`);
+                    out.push(`  \\includegraphics[width=1\\linewidth]{${filename}}`);
+                    out.push(`  \\caption{${caption}}`);
+                    out.push(`  \\label{fig:${label}}`);
+                    out.push(`\\end{figure}`);
+                    continue;
+                }
+
+                // Tables
+                const isTableLine = line.includes('|') && line.length > 2;
+                if (isTableLine && (line.startsWith('|') || /\|/.test(line))) {
+                    const isSeparator = line.replace(/\|/g, '').replace(/-/g, '').replace(/ /g, '').length === 0;
+
+                    if (!state.table) {
+                        if (!isSeparator) {
+                            closeBlocks();
+                            const cells = parseTableRow(line);
+                            const cols = cells.length;
+
+                            // Dynamic width logic
+                            let colFormat = "";
+                            if (cols === 5) {
+                                colFormat = "|p{2.5cm}|p{3.5cm}|p{3cm}|p{3cm}|p{3cm}|";
+                            } else {
+                                colFormat = "|" + Array(cols).fill("p{3cm}").join("|") + "|";
+                            }
+
+                            out.push(`\\begin{table}[htbp]\n\\centering\n\\small\n\\begin{tabular}{${colFormat}}\n\\hline`);
+                            out.push(`${cells.map(processInline).join(' & ')} \\\\ \\hline`);
+                            state.table = true;
+                        }
+                    } else {
+                        if (!isSeparator) {
+                            const cells = parseTableRow(line);
+                            out.push(`${cells.map(processInline).join(' & ')} \\\\ \\hline`);
+                        }
+                    }
+                    continue;
+                } else if (state.table) {
+                    closeBlocks();
+                }
+
+                // Unordered Lists
+                const ulMatch = line.match(/^[\*\-]\s+(.*)$/);
+                if (ulMatch) {
+                    if (state.list !== 'itemize') {
+                        closeBlocks();
+                        out.push('\\begin{itemize}');
+                        state.list = 'itemize';
+                    }
+                    out.push(`    \\item ${processInline(ulMatch[1])}`);
+                    continue;
+                }
+
+                // Ordered Lists
+                const olMatch = line.match(/^\d+[\.\\]*\s+(.*)$/);
+                if (olMatch) {
+                    if (state.list !== 'enumerate') {
+                        closeBlocks();
+                        out.push('\\begin{enumerate}');
+                        state.list = 'enumerate';
+                    }
+                    out.push(`    \\item ${processInline(olMatch[1])}`);
+                    continue;
+                }
+
+                // Close lists if we hit normal text
+                if (state.list) closeBlocks();
+
+                // Normal Text
+                out.push(processInline(line));
+            }
+
+            // Clean up any unclosed blocks at EOF
+            closeBlocks();
+            return out.join('\n');
+        }
+
+        // --- UI Interaction Logic ---
+        function executeConversion() {
+            const mdText = mdInput.value;
+            if (!mdText.trim()) {
+                latexOutput.value = '';
+                copyBtn.disabled = true;
+                inputStatus.textContent = 'Awaiting input...';
+                inputStatus.className = 'status-message';
+                return;
+            }
+
+            try {
+                const result = convertToLatex(mdText);
+                latexOutput.value = result;
+                copyBtn.disabled = false;
+                inputStatus.textContent = 'Successfully converted!';
+                inputStatus.className = 'status-message success';
+                outputStatus.textContent = '';
+            } catch (error) {
+                latexOutput.value = '% Error occurred during parsing\n% ' + error.message;
+                copyBtn.disabled = true;
+                inputStatus.textContent = 'Conversion failed. Check formatting.';
+                inputStatus.className = 'status-message error';
+            }
+        }
+
+        // Debounce for Auto-convert
+        let debounceTimer;
+        mdInput.addEventListener('input', () => {
+            inputStatus.textContent = 'Typing...';
+            inputStatus.className = 'status-message info';
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(executeConversion, 500);
+        });
+
+        // Manual triggers
+        convertBtn.addEventListener('click', executeConversion);
+
+        clearBtn.addEventListener('click', () => {
+            mdInput.value = '';
+            executeConversion();
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const textToCopy = latexOutput.value;
+            if (!textToCopy) return;
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copied!';
+                copyBtn.style.backgroundColor = '#2e7d32'; // Success green
+                outputStatus.textContent = 'LaTeX code copied to clipboard.';
+                outputStatus.className = 'status-message success';
+
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.backgroundColor = 'var(--primary-color)';
                     outputStatus.textContent = '';
-                } catch (error) {
-                    latexOutput.value = '% Error occurred during parsing\n% ' + error.message;
-                    copyBtn.disabled = true;
-                    inputStatus.textContent = 'Conversion failed. Check formatting.';
-                    inputStatus.className = 'status-message error';
-                }
-            }
-
-            // Debounce for Auto-convert
-            let debounceTimer;
-            mdInput.addEventListener('input', () => {
-                inputStatus.textContent = 'Typing...';
-                inputStatus.className = 'status-message info';
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(executeConversion, 500);
-            });
-
-            // Manual triggers
-            convertBtn.addEventListener('click', executeConversion);
-
-            clearBtn.addEventListener('click', () => {
-                mdInput.value = '';
-                executeConversion();
-            });
-
-            copyBtn.addEventListener('click', () => {
-                const textToCopy = latexOutput.value;
-                if (!textToCopy) return;
-
-                navigator.clipboard.writeText(textToCopy).then(() => {
-                    const originalText = copyBtn.textContent;
-                    copyBtn.textContent = 'Copied!';
-                    copyBtn.style.backgroundColor = '#2e7d32'; // Success green
-                    outputStatus.textContent = 'LaTeX code copied to clipboard.';
-                    outputStatus.className = 'status-message success';
-
-                    setTimeout(() => {
-                        copyBtn.textContent = originalText;
-                        copyBtn.style.backgroundColor = 'var(--primary-color)';
-                        outputStatus.textContent = '';
-                    }, 2000);
-                }).catch(err => {
-                    outputStatus.textContent = 'Failed to copy text: ' + err;
-                    outputStatus.className = 'status-message error';
-                });
+                }, 2000);
+            }).catch(err => {
+                outputStatus.textContent = 'Failed to copy text: ' + err;
+                outputStatus.className = 'status-message error';
             });
         });
-    </script>
+    });
+</script>
 
-    <p class="subtitle">
-        <strong>Note:</strong> This is a static web page that <strong>runs locally</strong> in your browser — <em>no data is
-        sent to any server</em>. If preferred, you can also download it as an HTML file and run it offline or clone from <a
-            href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT
-        License).
-    </p>
+<p class="subtitle">
+    <strong>Note:</strong> This is a static web page that <strong>runs locally</strong> in your browser — <em>no data is
+    sent to any server</em>. If preferred, you can also download it as an HTML file and run it offline or clone from <a
+        href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT
+    License).
+</p>
 </body>
 </html>
