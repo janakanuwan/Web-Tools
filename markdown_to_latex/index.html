@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown to LaTeX Converter</title>
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1400px; /* Slightly wider for side-by-side textareas */
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        h5 {
+            text-align: center;
+            color: #666;
+            margin-bottom: 25px;
+            font-weight: 400;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 900px) {
+            .container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .home-menu .icon { margin-right: 8px; display: flex; align-items: center; }
+
+        .controls, .results {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        textarea {
+            width: 100%;
+            flex-grow: 1;
+            min-height: 500px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.95rem;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px var(--secondary-color);
+        }
+
+        .input-area {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #fafafa;
+        }
+
+        .output-area {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background-color: #2b2b2b;
+            color: #a9b7c6;
+        }
+
+        .action-button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+
+        .action-button:hover:not(:disabled) { background-color: #3b5a8c; }
+        .action-button:disabled { background-color: var(--border-color); cursor: not-allowed; }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .button-group .action-button {
+            flex: 1;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+
+        .btn-secondary:hover:not(:disabled) { background-color: #5a6268; }
+
+        .status-message { font-size: 0.85rem; margin-top: 10px; min-height: 20px; font-weight: 500;}
+        .status-message.success { color: #2e7d32; }
+        .status-message.error { color: var(--accent-color); }
+        .status-message.info { color: var(--primary-color); }
+
+        .subtitle {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <a href="../" class="home-menu">
+        <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        </span>
+        <span>Back to Home</span>
+    </a>
+
+    <h1>Markdown to LaTeX Converter</h1>
+    <h5>Convert Markdown headings, tables, and lists into academic-ready LaTeX code.</h5>
+
+    <div class="container">
+        <div class="controls">
+            <h2>
+                1. Input Markdown
+                <span style="font-size: 0.8rem; font-weight: 400; color: #666;">Auto-converts on typing</span>
+            </h2>
+            <textarea id="mdInput" class="input-area" placeholder="Paste your Markdown here...&#10;&#10;## 3\. Theoretical Framework&#10;&#10;* *Perceptual co-location*: intervention delivered...&#10;* **Architectural independence**: system operates...&#10;&#10;| Pattern | Exploit |&#10;| --- | --- |&#10;| Nagging | Fatigue |"></textarea>
+
+            <div class="button-group">
+                <button id="convertBtn" class="action-button">Convert Now</button>
+                <button id="clearBtn" class="action-button btn-secondary">Clear</button>
+            </div>
+            <div id="inputStatus" class="status-message info">Ready for input.</div>
+        </div>
+
+        <div class="results">
+            <h2>2. LaTeX Output</h2>
+            <textarea id="latexOutput" class="output-area" readonly placeholder="% Your generated LaTeX will appear here..."></textarea>
+
+            <button id="copyBtn" class="action-button" disabled>Copy to Clipboard</button>
+            <div id="outputStatus" class="status-message"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const mdInput = document.getElementById('mdInput');
+            const latexOutput = document.getElementById('latexOutput');
+            const convertBtn = document.getElementById('convertBtn');
+            const copyBtn = document.getElementById('copyBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const outputStatus = document.getElementById('outputStatus');
+            const inputStatus = document.getElementById('inputStatus');
+
+            // --- Parser Core Logic ---
+            function processInline(text) {
+                // 1. Clean escaped markdown characters commonly found in copied text
+                let res = text.replace(/\\([.\-*_])/g, '$1');
+
+                // 2. Bold (handle **text**)
+                res = res.replace(/\*\*(.*?)\*\*/g, '\\textbf{$1}');
+
+                // 3. Italic (handle *text* and _text_)
+                res = res.replace(/\*([^\*]+?)\*/g, '\\textit{$1}');
+                res = res.replace(/_([^_]+?)_/g, '\\textit{$1}');
+
+                return res;
+            }
+
+            function parseTableRow(line) {
+                let trimmed = line.trim();
+                if (trimmed.startsWith('|')) trimmed = trimmed.substring(1);
+                if (trimmed.endsWith('|')) trimmed = trimmed.substring(0, trimmed.length - 1);
+                return trimmed.split('|').map(s => s.trim());
+            }
+
+            function convertToLatex(md) {
+                if (!md || md.trim() === '') return '';
+
+                const lines = md.split('\n');
+                const out = [];
+                const state = { list: null, table: false };
+
+                const closeBlocks = () => {
+                    if (state.list) {
+                        out.push(`\\end{${state.list}}`);
+                        state.list = null;
+                    }
+                    if (state.table) {
+                        out.push(`\\end{tabular}\n\\end{table}`);
+                        state.table = false;
+                    }
+                };
+
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i].trim();
+
+                    // Blank lines
+                    if (line === '') {
+                        closeBlocks();
+                        // Avoid multiple consecutive blank lines in LaTeX
+                        if (out.length > 0 && out[out.length - 1] !== '') {
+                            out.push('');
+                        }
+                        continue;
+                    }
+
+                    // Headings (#, ##, ###)
+                    const hMatch = line.match(/^(#{1,3})\s+(.*)$/);
+                    if (hMatch) {
+                        closeBlocks();
+                        const level = hMatch[1].length;
+                        const content = processInline(hMatch[2]);
+
+                        if (level === 1) out.push(`\\section{${content}}`);
+                        else if (level === 2) out.push(`\\subsection{${content}}`);
+                        else if (level === 3) out.push(`\\subsubsection{${content}}`);
+                        continue;
+                    }
+
+                    // Tables
+                    const isTableLine = line.includes('|') && line.length > 2;
+                    if (isTableLine && (line.startsWith('|') || /\|/.test(line))) {
+                        const isSeparator = line.replace(/\|/g, '').replace(/-/g, '').replace(/ /g, '').length === 0;
+
+                        if (!state.table) {
+                            if (!isSeparator) {
+                                closeBlocks();
+                                const cells = parseTableRow(line);
+                                const cols = cells.length;
+
+                                // Dynamic width logic (Matching example requirements)
+                                let colFormat = "";
+                                if (cols === 5) {
+                                    colFormat = "|p{2.5cm}|p{3.5cm}|p{3cm}|p{3cm}|p{3cm}|";
+                                } else {
+                                    colFormat = "|" + Array(cols).fill("p{3cm}").join("|") + "|";
+                                }
+
+                                out.push(`\\begin{table}[htbp]\n\\centering\n\\small\n\\begin{tabular}{${colFormat}}\n\\hline`);
+                                out.push(`${cells.map(processInline).join(' & ')} \\\\ \\hline`);
+                                state.table = true;
+                            }
+                        } else {
+                            if (!isSeparator) {
+                                const cells = parseTableRow(line);
+                                out.push(`${cells.map(processInline).join(' & ')} \\\\ \\hline`);
+                            }
+                        }
+                        continue;
+                    } else if (state.table) {
+                        closeBlocks();
+                    }
+
+                    // Unordered Lists
+                    const ulMatch = line.match(/^[\*\-]\s+(.*)$/);
+                    if (ulMatch) {
+                        if (state.list !== 'itemize') {
+                            closeBlocks();
+                            out.push('\\begin{itemize}');
+                            state.list = 'itemize';
+                        }
+                        out.push(`    \\item ${processInline(ulMatch[1])}`);
+                        continue;
+                    }
+
+                    // Ordered Lists
+                    const olMatch = line.match(/^\d+[\.\\]*\s+(.*)$/);
+                    if (olMatch) {
+                        if (state.list !== 'enumerate') {
+                            closeBlocks();
+                            out.push('\\begin{enumerate}');
+                            state.list = 'enumerate';
+                        }
+                        out.push(`    \\item ${processInline(olMatch[1])}`);
+                        continue;
+                    }
+
+                    // Close lists if we hit normal text
+                    if (state.list) closeBlocks();
+
+                    // Normal Text
+                    out.push(processInline(line));
+                }
+
+                // Clean up any unclosed blocks at EOF
+                closeBlocks();
+                return out.join('\n');
+            }
+
+            // --- UI Interaction Logic ---
+            function executeConversion() {
+                const mdText = mdInput.value;
+                if (!mdText.trim()) {
+                    latexOutput.value = '';
+                    copyBtn.disabled = true;
+                    inputStatus.textContent = 'Awaiting input...';
+                    inputStatus.className = 'status-message';
+                    return;
+                }
+
+                try {
+                    const result = convertToLatex(mdText);
+                    latexOutput.value = result;
+                    copyBtn.disabled = false;
+                    inputStatus.textContent = 'Successfully converted!';
+                    inputStatus.className = 'status-message success';
+                    outputStatus.textContent = '';
+                } catch (error) {
+                    latexOutput.value = '% Error occurred during parsing\n% ' + error.message;
+                    copyBtn.disabled = true;
+                    inputStatus.textContent = 'Conversion failed. Check formatting.';
+                    inputStatus.className = 'status-message error';
+                }
+            }
+
+            // Debounce for Auto-convert
+            let debounceTimer;
+            mdInput.addEventListener('input', () => {
+                inputStatus.textContent = 'Typing...';
+                inputStatus.className = 'status-message info';
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(executeConversion, 500);
+            });
+
+            // Manual triggers
+            convertBtn.addEventListener('click', executeConversion);
+
+            clearBtn.addEventListener('click', () => {
+                mdInput.value = '';
+                executeConversion();
+            });
+
+            copyBtn.addEventListener('click', () => {
+                const textToCopy = latexOutput.value;
+                if (!textToCopy) return;
+
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const originalText = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    copyBtn.style.backgroundColor = '#2e7d32'; // Success green
+                    outputStatus.textContent = 'LaTeX code copied to clipboard.';
+                    outputStatus.className = 'status-message success';
+
+                    setTimeout(() => {
+                        copyBtn.textContent = originalText;
+                        copyBtn.style.backgroundColor = 'var(--primary-color)';
+                        outputStatus.textContent = '';
+                    }, 2000);
+                }).catch(err => {
+                    outputStatus.textContent = 'Failed to copy text: ' + err;
+                    outputStatus.className = 'status-message error';
+                });
+            });
+        });
+    </script>
+
+    <p class="subtitle">
+        <strong>Note:</strong> This is a static web page that <strong>runs locally</strong> in your browser — <em>no data is
+        sent to any server</em>. If preferred, you can also download it as an HTML file and run it offline or clone from <a
+            href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT
+        License).
+    </p>
+</body>
+</html>
