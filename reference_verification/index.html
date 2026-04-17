@@ -903,7 +903,10 @@ OUTPUT FORMAT EXAMPLE:
                         generationConfig: {
                             temperature: 0, // Deterministic
                             maxOutputTokens: 8192, // Increased for batch processing
-                            responseMimeType: "application/json" // Enforce JSON mode
+                            responseMimeType: "application/json", // Enforce JSON mode
+                            thinkingConfig: {
+                                thinkingBudget: 0
+                            }
                         }
                     })
                 });
@@ -919,14 +922,21 @@ OUTPUT FORMAT EXAMPLE:
                 }
 
                 const data = await response.json();
-                text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                const candidate = data.candidates?.[0];
+                text = candidate?.content?.parts?.[0]?.text || '';
+
+                const finishReason = candidate?.finishReason || "UNKNOWN";
+
+                console.debug(`LLM Finish Reason: ${finishReason}`);
+                console.debug(`LLM response text: [${text}]`);
+                // If finishReason is "MAX_TOKENS", your batch is too large or the model thought too much.
+                // If finishReason is "SAFETY", it censored a specific academic paper.
+                // If finishReason is "STOP", the model incorrectly thought it was finished.
 
                 // Even in JSON mode, verify the string isn't empty
                 if (!text) {
                     throw new Error('Empty response from LLM');
                 }
-
-                console.debug(`LLM response text: [${text}]`);
 
                 // Attempt to parse directly first (JSON mode usually returns clean JSON)
                 const parsedData = safeJSONParse(text);
@@ -2434,7 +2444,7 @@ OUTPUT FORMAT EXAMPLE:
     }
 }
 
-    // Verify reference using Semantic Scholar before LLM
+    // Verify reference using Semantic Scholar
     async function verifyReferenceViaSemanticScholar(ref) {
         const result = {
             verified: false,
@@ -2772,6 +2782,9 @@ OUTPUT FORMAT (exact keys and order required):
                         topP: 1,
                         maxOutputTokens: 1024,
                         responseMimeType: "application/json",
+                        thinkingConfig: {
+                            thinkingBudget: 0
+                        },
                     }
                 })
             });
@@ -2782,7 +2795,11 @@ OUTPUT FORMAT (exact keys and order required):
             }
 
             const data = await response.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const candidate = data.candidates?.[0];
+            const text = candidate?.content?.parts?.[0]?.text || '';
+
+            const finishReason = candidate?.finishReason || "UNKNOWN";
+            console.debug(`LLM Finish Reason: ${finishReason}`);
 
             console.debug(`LLM response text: [${text}]`);
 
