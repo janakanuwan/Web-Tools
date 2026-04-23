@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sheet Comparison Tool</title>
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            --file1-color: #4a6fa5;
+            --file2-color: #f39c12;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1500px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 1100px) {
+            .container {
+                grid-template-columns: minmax(350px, 25%) 1fr;
+            }
+        }
+
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .home-menu .icon { margin-right: 8px; display: flex; align-items: center; }
+
+        .controls, .results {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+
+        .section { margin-bottom: 20px; }
+        .section label { font-weight: 600; display: block; margin-bottom: 5px; font-size: 0.9rem;}
+
+        .file-input-container { position: relative; margin-bottom: 15px; }
+
+        .custom-file-upload {
+            display: block; width: 100%; padding: 10px 15px;
+            background-color: var(--primary-color); color: white;
+            text-align: center; cursor: pointer; border-radius: 4px;
+            transition: background-color 0.3s; font-weight: 500;
+        }
+
+        .custom-file-upload:hover { opacity: 0.9; }
+        input[type="file"] { display: none; }
+
+        .status-message { font-size: 0.85rem; color: #666; margin-top: 5px; }
+        .status-message.success { color: #2e7d32; }
+        .status-message.error { color: var(--accent-color); }
+
+        .selection-group {
+            padding: 15px;
+            background: var(--light-gray);
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .selection-group.file1 { border-left: 4px solid var(--file1-color); }
+        .selection-group.file2 { border-left: 4px solid var(--file2-color); }
+
+        .selection-group strong {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        select {
+            width: 100%; padding: 8px; border: 1px solid var(--border-color);
+            border-radius: 4px; margin-bottom: 10px; font-size: 0.95rem;
+        }
+
+        .action-btn {
+            display: block; width: 100%; padding: 12px;
+            background-color: var(--primary-color); color: white;
+            text-align: center; cursor: pointer; border: none; border-radius: 4px;
+            font-size: 1rem; font-weight: bold; transition: 0.3s;
+            margin-top: 10px;
+        }
+
+        .action-btn:hover { background-color: #3a5985; }
+        .action-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* Updated Table Layout */
+        .results-header-info {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .diff-table-container {
+            max-height: 750px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+            table-layout: fixed;
+        }
+
+        .results-table th, .results-table td {
+            border-bottom: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            padding: 12px 15px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .results-table th:last-child, .results-table td:last-child {
+            border-right: none;
+        }
+
+        .results-table th {
+            background-color: var(--secondary-color);
+            color: var(--primary-color);
+            font-weight: 600;
+            font-size: 0.95rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            box-shadow: 0 1px 0 var(--border-color); /* Fixes border disappearance on sticky header */
+        }
+
+        .cell-header {
+            font-size: 0.8rem; font-weight: bold; color: #666;
+            margin-bottom: 4px;
+        }
+
+        .value-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            background: var(--light-gray);
+            border: 1px solid #eee;
+            padding: 8px 12px;
+            border-radius: 4px;
+            min-height: 40px;
+            width: 100%;
+            gap: 10px;
+        }
+
+        .value-text {
+            font-family: monospace;
+            font-size: 0.95rem;
+            color: #d32f2f;
+            flex-grow: 1;
+            /* Wrap properties */
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .copy-btn {
+            background: none; border: none; cursor: pointer;
+            color: #888; display: flex; align-items: center;
+            padding: 4px; border-radius: 4px; transition: 0.2s;
+            flex-shrink: 0; /* Prevents button from shrinking */
+        }
+
+        .copy-btn:hover { background: #e0e0e0; color: var(--text-color); }
+        .copy-btn svg { width: 16px; height: 16px; }
+
+        .empty-state {
+            text-align: center; color: #888; padding: 40px;
+            font-style: italic; font-size: 1rem; background: var(--light-gray);
+            border-radius: 6px; border: 1px dashed var(--border-color);
+            margin-top: 15px;
+        }
+
+        @media (max-width: 767px) {
+            .home-menu { position: relative; top: 0; left: 0; width: fit-content; margin: 0 auto 20px; }
+            .results-table { table-layout: auto; }
+        }
+    </style>
+</head>
+<body>
+    <a href="../" class="home-menu">
+        <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        </span>
+        <span>Back to Home</span>
+    </a>
+
+    <h1>Sheet Comparison Tool</h1>
+    <p style="text-align: center; color: #666; margin-bottom: 30px;">Compare data cell-by-cell between two Excel/CSV files to detect differences.</p>
+
+    <div class="container">
+        <div class="controls">
+            <div class="section">
+                <h2>1. Upload Files</h2>
+                <div class="file-input-container">
+                    <label for="file1Input" class="custom-file-upload" style="background-color: var(--file1-color);">Upload File 1 (.xlsx, .csv)</label>
+                    <input type="file" id="file1Input" accept=".xlsx,.xls,.csv">
+                    <div id="file1Status" class="status-message">Waiting for File 1...</div>
+                </div>
+                <div class="file-input-container" style="margin-top: 15px;">
+                    <label for="file2Input" class="custom-file-upload" style="background-color: var(--file2-color);">Upload File 2 (.xlsx, .csv)</label>
+                    <input type="file" id="file2Input" accept=".xlsx,.xls,.csv">
+                    <div id="file2Status" class="status-message">Waiting for File 2...</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>2. Select Sheets & Context</h2>
+
+                <label for="ctxSelect">Context Column (from File 1):</label>
+                <select id="ctxSelect" disabled><option>Upload File 1 first...</option></select>
+
+                <div class="selection-group file1">
+                    <strong>File 1 Mapping</strong>
+                    <label for="sheet1Select">Select Sheet:</label>
+                    <select id="sheet1Select" disabled><option>Upload File 1 first...</option></select>
+
+                    <label for="startCol1Select">Start Comparison From Col:</label>
+                    <select id="startCol1Select" disabled><option>Select a sheet first...</option></select>
+                </div>
+
+                <div class="selection-group file2">
+                    <strong>File 2 Mapping</strong>
+                    <label for="sheet2Select">Select Sheet:</label>
+                    <select id="sheet2Select" disabled><option>Upload File 2 first...</option></select>
+
+                    <label for="startCol2Select">Start Comparison From Col:</label>
+                    <select id="startCol2Select" disabled><option>Select a sheet first...</option></select>
+                </div>
+            </div>
+
+            <button id="runBtn" class="action-btn" disabled>Run Comparison</button>
+        </div>
+
+        <div class="results">
+            <div class="results-header-info">
+                <h2>Comparison Results</h2>
+                <span id="diffCount" style="font-weight: bold; color: var(--accent-color);"></span>
+            </div>
+            <div id="diffList">
+                <div class="empty-state">Upload files and map columns to see differences here.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // State
+            let file1Workbook = null, file2Workbook = null;
+            let file1RawData = [], file2RawData = [];
+            let headers1 = [], headers2 = [];
+
+            // Elements
+            const file1Input = document.getElementById('file1Input');
+            const file2Input = document.getElementById('file2Input');
+            const file1Status = document.getElementById('file1Status');
+            const file2Status = document.getElementById('file2Status');
+
+            const sheet1Select = document.getElementById('sheet1Select');
+            const sheet2Select = document.getElementById('sheet2Select');
+            const startCol1Select = document.getElementById('startCol1Select');
+            const startCol2Select = document.getElementById('startCol2Select');
+            const ctxSelect = document.getElementById('ctxSelect');
+
+            const runBtn = document.getElementById('runBtn');
+            const diffList = document.getElementById('diffList');
+            const diffCount = document.getElementById('diffCount');
+
+            // Event Listeners
+            file1Input.addEventListener('change', (e) => handleUpload(e, 1));
+            file2Input.addEventListener('change', (e) => handleUpload(e, 2));
+
+            sheet1Select.addEventListener('change', () => handleSheetChange(1));
+            sheet2Select.addEventListener('change', () => handleSheetChange(2));
+
+            runBtn.addEventListener('click', runComparison);
+
+            function handleUpload(e, fileNum) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const statusEl = fileNum === 1 ? file1Status : file2Status;
+                const sheetSelect = fileNum === 1 ? sheet1Select : sheet2Select;
+
+                statusEl.textContent = `Processing ${file.name}...`;
+                statusEl.className = 'status-message';
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = new Uint8Array(evt.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+
+                        if (fileNum === 1) {
+                            file1Workbook = workbook;
+                            populateDropdown(sheetSelect, workbook.SheetNames);
+                            handleSheetChange(1);
+                        } else {
+                            file2Workbook = workbook;
+                            populateDropdown(sheetSelect, workbook.SheetNames);
+                            handleSheetChange(2);
+                        }
+
+                        statusEl.textContent = `Loaded ${file.name}.`;
+                        statusEl.className = 'status-message success';
+                        checkReady();
+                    } catch (err) {
+                        statusEl.textContent = `Error: ${err.message}`;
+                        statusEl.className = 'status-message error';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            function handleSheetChange(fileNum) {
+                const workbook = fileNum === 1 ? file1Workbook : file2Workbook;
+                const sheetSelect = fileNum === 1 ? sheet1Select : sheet2Select;
+                const colSelect = fileNum === 1 ? startCol1Select : startCol2Select;
+
+                if (!workbook || !sheetSelect.value) return;
+
+                const sheetName = sheetSelect.value;
+                const sheet = workbook.Sheets[sheetName];
+
+                const rawArr = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+                if (rawArr.length === 0) {
+                    colSelect.innerHTML = '<option value="">Sheet is empty</option>';
+                    colSelect.disabled = true;
+                    if(fileNum === 1) { file1RawData = []; headers1 = []; ctxSelect.disabled = true; }
+                    else { file2RawData = []; headers2 = []; }
+                    checkReady();
+                    return;
+                }
+
+                const extractedHeaders = rawArr[0].map((h, i) => h !== "" ? String(h).trim() : `Column ${i + 1}`);
+
+                if (fileNum === 1) {
+                    file1RawData = rawArr;
+                    headers1 = extractedHeaders;
+                    populateDropdownWithIndex(colSelect, extractedHeaders);
+                    populateDropdownWithIndex(ctxSelect, extractedHeaders);
+                } else {
+                    file2RawData = rawArr;
+                    headers2 = extractedHeaders;
+                    populateDropdownWithIndex(colSelect, extractedHeaders);
+                }
+
+                checkReady();
+            }
+
+            function populateDropdown(selectEl, options) {
+                selectEl.innerHTML = '';
+                selectEl.disabled = false;
+                options.forEach(opt => {
+                    const el = document.createElement('option');
+                    el.value = opt; el.textContent = opt;
+                    selectEl.appendChild(el);
+                });
+            }
+
+            function populateDropdownWithIndex(selectEl, options) {
+                selectEl.innerHTML = '';
+                selectEl.disabled = false;
+                options.forEach((opt, index) => {
+                    const el = document.createElement('option');
+                    el.value = index;
+                    el.textContent = `[Col ${index + 1}] ${opt}`;
+                    selectEl.appendChild(el);
+                });
+            }
+
+            function checkReady() {
+                if (file1RawData.length > 0 && file2RawData.length > 0 &&
+                    !startCol1Select.disabled && !startCol2Select.disabled) {
+                    runBtn.disabled = false;
+                } else {
+                    runBtn.disabled = true;
+                }
+            }
+
+            function runComparison() {
+                const start1 = parseInt(startCol1Select.value);
+                const start2 = parseInt(startCol2Select.value);
+                const ctxIdx = parseInt(ctxSelect.value);
+
+                const maxRows = Math.max(file1RawData.length, file2RawData.length);
+                const results = [];
+
+                for (let r = 1; r < maxRows; r++) {
+                    const row1 = file1RawData[r] || [];
+                    const row2 = file2RawData[r] || [];
+
+                    const cols1ToCheck = Math.max(0, row1.length - start1);
+                    const cols2ToCheck = Math.max(0, row2.length - start2);
+                    const maxCols = Math.max(cols1ToCheck, cols2ToCheck);
+
+                    for (let c = 0; c < maxCols; c++) {
+                        let val1 = row1[start1 + c];
+                        let val2 = row2[start2 + c];
+
+                        val1 = val1 !== undefined && val1 !== null ? String(val1).trim() : "";
+                        val2 = val2 !== undefined && val2 !== null ? String(val2).trim() : "";
+
+                        if (val1 !== val2) {
+                            let head1 = headers1[start1 + c] || `Column ${start1 + c + 1}`;
+                            let head2 = headers2[start2 + c] || `Column ${start2 + c + 1}`;
+
+                            let ctxVal = row1[ctxIdx] !== undefined && row1[ctxIdx] !== null ? String(row1[ctxIdx]).trim() : "N/A";
+
+                            results.push({
+                                rowNum: r + 1,
+                                ctxVal: ctxVal,
+                                head1: head1,
+                                head2: head2,
+                                val1: val1,
+                                val2: val2
+                            });
+                        }
+                    }
+                }
+
+                renderResults(results);
+            }
+
+            function renderResults(diffs) {
+                diffList.innerHTML = '';
+
+                if (diffs.length === 0) {
+                    diffCount.textContent = "0 Differences";
+                    diffList.innerHTML = `<div class="empty-state">Great! No differences found starting from the selected columns.</div>`;
+                    return;
+                }
+
+                diffCount.textContent = `${diffs.length} Difference(s) Found`;
+
+                const ctxIdx = parseInt(ctxSelect.value);
+                const ctxName = headers1[ctxIdx] ? headers1[ctxIdx] : 'Context Column';
+
+                let tableHTML = `
+                    <div class="diff-table-container">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th width="8%">Row #</th>
+                                    <th width="15%">${escapeHTML(ctxName)}</th>
+                                    <th width="38.5%">First Sheet Data</th>
+                                    <th width="38.5%">Second Sheet Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                diffs.forEach(diff => {
+                    const safeV1 = escapeHTML(diff.val1 || "(empty)");
+                    const safeV2 = escapeHTML(diff.val2 || "(empty)");
+                    const safeCopyV1 = escapeHTML(diff.val1).replace(/'/g, "\\'");
+                    const safeCopyV2 = escapeHTML(diff.val2).replace(/'/g, "\\'");
+
+                    tableHTML += `
+                        <tr>
+                            <td style="font-weight:bold; color:var(--primary-color);">${diff.rowNum}</td>
+                            <td>${escapeHTML(diff.ctxVal)}</td>
+                            <td>
+                                <div class="cell-header" style="color: var(--file1-color)">Col: ${escapeHTML(diff.head1)}</div>
+                                <div class="value-box">
+                                    <span class="value-text">${safeV1}</span>
+                                    <button class="copy-btn" title="Copy Value" onclick="copyText('${safeCopyV1}')">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="cell-header" style="color: var(--file2-color)">Col: ${escapeHTML(diff.head2)}</div>
+                                <div class="value-box">
+                                    <span class="value-text">${safeV2}</span>
+                                    <button class="copy-btn" title="Copy Value" onclick="copyText('${safeCopyV2}')">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                diffList.innerHTML = tableHTML;
+            }
+        });
+
+        // Utilities
+        function escapeHTML(str) {
+            if (!str) return "";
+            return str.replace(/[&<>'"]/g,
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        window.copyText = function(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Visual feedback could be added here
+            }).catch(err => {
+                console.error('Could not copy text: ', err);
+            });
+        };
+    </script>
+
+    <p class="subtitle">
+        <strong>Note:</strong> This is a static web page that <strong>runs locally</strong> in your browser — <em>no data is
+        sent to any server</em>. If preferred, you can also download it as an HTML file and run it offline or clone from <a
+            href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT
+        License).
+    </p>
+</body>
+</html>

@@ -2996,7 +2996,7 @@ OUTPUT FORMAT (exact keys and order required):
         // }
 
         // 1. Try LLM Extraction first (if API key is available)
-        const BATCH_SIZE = 20;
+        const BATCH_SIZE = 30;
         const hasApiKey = storage.get('geminiApiKey');
 
         if (hasApiKey) {
