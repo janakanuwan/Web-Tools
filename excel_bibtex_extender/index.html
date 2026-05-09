@@ -193,6 +193,14 @@
                 <select id="bibKeySelect" disabled><option>Upload BibTeX first...</option></select>
             </div>
 
+            <div class="section">
+                <label for="insertPositionSelect">New Columns Position:</label>
+                <select id="insertPositionSelect">
+                    <option value="start" selected>Add to Beginning (First Columns)</option>
+                    <option value="end">Add to End (Last Columns)</option>
+                </select>
+            </div>
+
             <button id="extendBtn" class="action-button" disabled>Extend & Download Dataset</button>
         </div>
 
@@ -506,40 +514,49 @@
                 let unmatchedCount = 0;
                 let multiMatchCount = 0;
 
+                // Get the user's chosen position
+                const insertPos = document.getElementById('insertPositionSelect').value;
+
                 const extendedDataset = dataset.map((row, index) => {
-                    // Create copy of the original row
-                    const newRow = { ...row };
                     const dValOriginal = row[dKey];
                     const dValNorm = normalizeStr(dValOriginal);
+                    let matchObj = null;
 
                     if (!dValNorm) {
                         log(`Row ${index + 1}: Join key empty. Skipping.`, 'warn');
                         unmatchedCount++;
-                        return newRow;
-                    }
-
-                    // Find matches in BibTeX
-                    const matches = bibData.filter(bibEntry => normalizeStr(bibEntry[bKey]) === dValNorm);
-
-                    if (matches.length === 0) {
-                        log(`No match found for: "${dValOriginal}"`, 'warn');
-                        unmatchedCount++;
                     } else {
-                        if (matches.length > 1) {
-                            log(`Multiple matches (${matches.length}) found for: "${dValOriginal}". Using the first one.`, 'warn');
-                            multiMatchCount++;
+                        // Find matches in BibTeX
+                        const matches = bibData.filter(bibEntry => normalizeStr(bibEntry[bKey]) === dValNorm);
+
+                        if (matches.length === 0) {
+                            log(`No match found for: "${dValOriginal}"`, 'warn');
+                            unmatchedCount++;
+                        } else {
+                            if (matches.length > 1) {
+                                log(`Multiple matches (${matches.length}) found for: "${dValOriginal}". Using the first one.`, 'warn');
+                                multiMatchCount++;
+                            }
+                            matchedCount++;
+                            matchObj = matches[0];
                         }
-                        matchedCount++;
-
-                        const match = matches[0];
-
-                        // Append selected fields
-                        fieldsToAdd.forEach(field => {
-                            newRow[field] = match[field] !== undefined ? match[field] : '';
-                        });
                     }
 
-                    return newRow;
+                    // 1. Gather all the new BibTeX fields into a separate object
+                    const newFieldsObj = {};
+                    fieldsToAdd.forEach(field => {
+                        // Ensure we always add the key so columns align perfectly, even if empty
+                        newFieldsObj[field] = matchObj && matchObj[field] !== undefined ? matchObj[field] : '';
+                    });
+
+                    // 2. Merge them based on user selection
+                    if (insertPos === 'start') {
+                        // Prepend: Put new fields first, then the original row data
+                        return { ...newFieldsObj, ...row };
+                    } else {
+                        // Append: Put original row data first, then new fields
+                        return { ...row, ...newFieldsObj };
+                    }
                 });
 
                 log("--- Summary ---", "success");
