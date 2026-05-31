@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel/CSV Data Extractor</title>
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png" type="image/png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            --file-color: #27ae60; /* Green for extraction */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 900px) {
+            .container {
+                grid-template-columns: minmax(350px, 40%) 1fr;
+            }
+        }
+
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .home-menu .icon { margin-right: 8px; display: flex; align-items: center; }
+
+        .controls, .results {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+        }
+
+        .section { margin-bottom: 25px; }
+        .section label { font-weight: 600; display: block; margin-bottom: 5px; font-size: 0.9rem;}
+
+        .file-input-container { position: relative; margin-bottom: 15px; }
+
+        .custom-file-upload {
+            display: block; width: 100%; padding: 10px 15px;
+            background-color: var(--file-color); color: white;
+            text-align: center; cursor: pointer; border-radius: 4px;
+            transition: background-color 0.3s; font-weight: 500;
+        }
+
+        .custom-file-upload:hover { opacity: 0.9; }
+        input[type="file"] { display: none; }
+
+        .status-message { font-size: 0.85rem; color: #666; margin-top: 5px; }
+        .status-message.success { color: #2e7d32; }
+        .status-message.error { color: var(--accent-color); }
+
+        .selection-group {
+            padding: 15px;
+            background: var(--light-gray);
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--file-color);
+        }
+
+        select, textarea, input[type="text"] {
+            width: 100%; padding: 8px; border: 1px solid var(--border-color);
+            border-radius: 4px; margin-bottom: 15px; font-size: 0.95rem;
+            font-family: inherit;
+        }
+
+        textarea { resize: vertical; min-height: 80px; }
+        select:last-child { margin-bottom: 0; }
+
+        .checkbox-list {
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            background: white;
+            margin-bottom: 15px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            font-weight: 400 !important;
+            cursor: pointer;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .checkbox-label input { margin-right: 10px; cursor: pointer; }
+
+        .btn-extract {
+            display: block; width: 100%; padding: 12px;
+            background-color: var(--primary-color); color: white;
+            border: none; border-radius: 4px; cursor: pointer;
+            font-size: 1rem; font-weight: 600; transition: background 0.3s;
+        }
+        .btn-extract:hover { background-color: #3a5985; }
+        .btn-extract:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .result-box {
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: #fafafa;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .result-box h3 {
+            font-size: 0.95rem;
+            color: white;
+            padding: 10px;
+            margin: 0;
+            background-color: var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .copy-btn {
+            background: rgba(255,255,255,0.2); border: none; color: white;
+            padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+        }
+        .copy-btn:hover { background: rgba(255,255,255,0.4); }
+
+        .result-content { padding: 15px; }
+
+        table {
+            width: 100%; border-collapse: collapse; font-size: 0.85rem;
+        }
+        th, td {
+            border: 1px solid var(--border-color); padding: 8px; text-align: left;
+        }
+        th { background-color: var(--light-gray); font-weight: 600; }
+
+        .table-container { overflow-x: auto; max-height: 400px; overflow-y: auto; }
+
+        .empty-state { text-align: center; color: #888; padding: 20px; font-style: italic; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <a href="../" class="home-menu">
+        <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        </span>
+        <span>Back to Home</span>
+    </a>
+
+    <h1>Data Extractor Tool</h1>
+    <p style="text-align: center; color: #666; margin-bottom: 30px;">Extract secondary and tertiary data based on a list of primary column lookup keys.</p>
+
+    <div class="container">
+        <div class="controls">
+            <div class="section">
+                <h2>1. Upload Data File</h2>
+                <div class="file-input-container">
+                    <label for="fileInput" class="custom-file-upload">Upload Data (.xlsx, .csv)</label>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+                    <div id="fileStatus" class="status-message">Waiting for file...</div>
+                </div>
+                <label for="sheetSelect">Select Sheet:</label>
+                <select id="sheetSelect" disabled><option>Upload file first...</option></select>
+            </div>
+
+            <div class="section">
+                <h2>2. Define Lookup Criteria</h2>
+                <div class="selection-group">
+                    <label for="primaryColSelect">Primary Column (Lookup Key):</label>
+                    <select id="primaryColSelect" disabled><option>Select a sheet first...</option></select>
+
+                    <label for="lookupValues">Lookup Values (Comma separated):</label>
+                    <textarea id="lookupValues" placeholder="e.g. 1, 2, 3 or ID-A, ID-B" disabled></textarea>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>3. Select Output Columns</h2>
+                <div class="selection-group">
+                    <label for="secondaryColSelect">Secondary Column (Text Output):</label>
+                    <select id="secondaryColSelect" disabled><option>Select a sheet first...</option></select>
+
+                    <label>Tertiary Columns (Table Output):</label>
+                    <div id="tertiaryColsContainer" class="checkbox-list">
+                        <div class="empty-state" style="padding:5px;">No columns available</div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="extractBtn" class="btn-extract" disabled>Extract Data</button>
+        </div>
+
+        <div class="results">
+            <h2>Extraction Results</h2>
+
+            <div class="result-box">
+                <h3>
+                    Secondary Column Output
+                    <button class="copy-btn" id="copyBtn">Copy Text</button>
+                </h3>
+                <div class="result-content">
+                    <textarea id="secondaryOutput" readonly placeholder="Extracted values will appear here..." style="margin: 0; min-height: 100px; background: #fff;"></textarea>
+                </div>
+            </div>
+
+            <div class="result-box">
+                <h3>Tertiary Columns Output</h3>
+                <div class="result-content table-container" id="tertiaryOutput">
+                    <div class="empty-state">Table data will appear here...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let workbook = null;
+            let sheetData = [];
+            let headers = [];
+
+            // UI Elements
+            const fileInput = document.getElementById('fileInput');
+            const fileStatus = document.getElementById('fileStatus');
+            const sheetSelect = document.getElementById('sheetSelect');
+
+            const primaryColSelect = document.getElementById('primaryColSelect');
+            const lookupValuesInput = document.getElementById('lookupValues');
+
+            const secondaryColSelect = document.getElementById('secondaryColSelect');
+            const tertiaryColsContainer = document.getElementById('tertiaryColsContainer');
+
+            const extractBtn = document.getElementById('extractBtn');
+            const secondaryOutput = document.getElementById('secondaryOutput');
+            const tertiaryOutput = document.getElementById('tertiaryOutput');
+            const copyBtn = document.getElementById('copyBtn');
+
+            // Event Listeners
+            fileInput.addEventListener('change', handleUpload);
+            sheetSelect.addEventListener('change', handleSheetChange);
+            extractBtn.addEventListener('click', runExtraction);
+            copyBtn.addEventListener('click', copySecondaryOutput);
+
+            function handleUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                fileStatus.textContent = `Processing ${file.name}...`;
+                fileStatus.className = 'status-message';
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = new Uint8Array(evt.target.result);
+                        workbook = XLSX.read(data, { type: 'array' });
+
+                        sheetSelect.innerHTML = '';
+                        sheetSelect.disabled = false;
+                        workbook.SheetNames.forEach(name => {
+                            const option = document.createElement('option');
+                            option.value = name;
+                            option.textContent = name;
+                            sheetSelect.appendChild(option);
+                        });
+
+                        handleSheetChange();
+                        fileStatus.textContent = `Loaded ${file.name}.`;
+                        fileStatus.className = 'status-message success';
+                    } catch (err) {
+                        fileStatus.textContent = `Error: ${err.message}`;
+                        fileStatus.className = 'status-message error';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            function handleSheetChange() {
+                if (!workbook || !sheetSelect.value) return;
+
+                const sheetName = sheetSelect.value;
+                const sheet = workbook.Sheets[sheetName];
+
+                // Extract data and headers
+                sheetData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+                const rawArr = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                headers = rawArr[0] ? rawArr[0].map(h => String(h).trim()).filter(h => h) : [];
+
+                if (sheetData.length === 0 || headers.length === 0) {
+                    resetControls("Sheet is empty or invalid");
+                    return;
+                }
+
+                populateDropdown(primaryColSelect, headers);
+                populateDropdown(secondaryColSelect, headers);
+                populateCheckboxes(tertiaryColsContainer, headers);
+
+                // Enable inputs
+                lookupValuesInput.disabled = false;
+                extractBtn.disabled = false;
+            }
+
+            function resetControls(msg) {
+                primaryColSelect.innerHTML = `<option value="">${msg}</option>`;
+                secondaryColSelect.innerHTML = `<option value="">${msg}</option>`;
+                tertiaryColsContainer.innerHTML = `<div class="empty-state">${msg}</div>`;
+
+                primaryColSelect.disabled = true;
+                secondaryColSelect.disabled = true;
+                lookupValuesInput.disabled = true;
+                extractBtn.disabled = true;
+                sheetData = [];
+            }
+
+            function populateDropdown(selectEl, options) {
+                selectEl.innerHTML = '';
+                selectEl.disabled = false;
+                options.forEach(opt => {
+                    const el = document.createElement('option');
+                    el.value = opt;
+                    el.textContent = opt;
+                    selectEl.appendChild(el);
+                });
+            }
+
+            function populateCheckboxes(container, options) {
+                container.innerHTML = '';
+                options.forEach(opt => {
+                    const label = document.createElement('label');
+                    label.className = 'checkbox-label';
+
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.value = opt;
+                    cb.className = 'tertiary-cb';
+
+                    label.appendChild(cb);
+                    label.appendChild(document.createTextNode(opt));
+                    container.appendChild(label);
+                });
+            }
+
+            function runExtraction() {
+                if (!sheetData.length) return;
+
+                const primaryCol = primaryColSelect.value;
+                const secondaryCol = secondaryColSelect.value;
+
+                // Get checked tertiary columns
+                const tertiaryCols = Array.from(document.querySelectorAll('.tertiary-cb:checked')).map(cb => cb.value);
+
+                // Parse lookup keys (split by comma, trim, ignore empty)
+                const rawLookup = lookupValuesInput.value;
+                const lookupKeys = rawLookup.split(',')
+                    .map(v => v.trim().toLowerCase())
+                    .filter(v => v.length > 0);
+
+                if (lookupKeys.length === 0) {
+                    alert("Please enter at least one lookup value.");
+                    return;
+                }
+
+                // Filter rows matching lookup keys
+                const matchedRows = sheetData.filter(row => {
+                    const rowVal = String(row[primaryCol] || '').trim().toLowerCase();
+                    return lookupKeys.includes(rowVal);
+                });
+
+                // Generate Secondary Output (Comma separated string)
+                const secondaryResults = matchedRows
+                    .map(row => String(row[secondaryCol] || '').trim())
+                    .filter(v => v !== '');
+
+                secondaryOutput.value = secondaryResults.length > 0
+                    ? secondaryResults.join(', ')
+                    : 'No matches found.';
+
+                // Remove the primary column from tertiary if the user accidentally checked it, to avoid duplicates
+                const filteredTertiary = tertiaryCols.filter(col => col !== primaryCol);
+
+                // Combine the primary column with the selected tertiary columns
+                const tableColumns = [primaryCol, ...filteredTertiary];
+
+                // Generate Tertiary Output (HTML Table)
+                renderTable(matchedRows, tableColumns);
+            }
+
+            function renderTable(rows, columns) {
+                if (rows.length === 0 || columns.length === 0) {
+                    tertiaryOutput.innerHTML = '<div class="empty-state">No data to display. Select tertiary columns and ensure lookup matches exist.</div>';
+                    return;
+                }
+
+                const table = document.createElement('table');
+
+                // Header
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                columns.forEach(col => {
+                    const th = document.createElement('th');
+                    th.textContent = col;
+                    headerRow.appendChild(th);
+                });
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+
+                // Body
+                const tbody = document.createElement('tbody');
+                rows.forEach(row => {
+                    const tr = document.createElement('tr');
+                    columns.forEach(col => {
+                        const td = document.createElement('td');
+                        td.textContent = row[col] !== undefined ? row[col] : '';
+                        tr.appendChild(td);
+                    });
+                    tbody.appendChild(tr);
+                });
+                table.appendChild(tbody);
+
+                tertiaryOutput.innerHTML = '';
+                tertiaryOutput.appendChild(table);
+            }
+
+            function copySecondaryOutput() {
+                if (!secondaryOutput.value || secondaryOutput.value === 'No matches found.') return;
+
+                secondaryOutput.select();
+                secondaryOutput.setSelectionRange(0, 99999); // For mobile devices
+                navigator.clipboard.writeText(secondaryOutput.value).then(() => {
+                    const originalText = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(() => copyBtn.textContent = originalText, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+            }
+        });
+    </script>
+
+    <p class="subtitle">
+        <strong>Note:</strong> This is a static web page that <strong>runs locally</strong> in your browser — <em>no data is
+        sent to any server</em>. If preferred, you can also download it as an HTML file and run it offline or clone from <a
+            href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT
+        License).
+    </p>
+</body>
+</html>
