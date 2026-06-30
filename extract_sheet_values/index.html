@@ -198,7 +198,11 @@
             z-index: 1; /* Keeps the header above the scrolling table rows */
         }
 
-        .table-container { overflow-x: auto; max-height: 400px; overflow-y: auto; }
+        .table-container {
+            overflow-x: auto;
+            max-height: calc(100vh - 320px); /* Adjust the 350px offset based on your top headers */
+            overflow-y: auto;
+        }
 
         .empty-state { text-align: center; color: #888; padding: 20px; font-style: italic; font-size: 0.9rem; }
     </style>
