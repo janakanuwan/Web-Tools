@@ -190,7 +190,13 @@
         th, td {
             border: 1px solid var(--border-color); padding: 8px; text-align: left;
         }
-        th { background-color: var(--light-gray); font-weight: 600; }
+        th {
+            background-color: var(--light-gray);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 1; /* Keeps the header above the scrolling table rows */
+        }
 
         .table-container { overflow-x: auto; max-height: 400px; overflow-y: auto; }
 
