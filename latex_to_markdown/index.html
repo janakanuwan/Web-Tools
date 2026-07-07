@@ -307,15 +307,25 @@
                     continue;
                 }
 
-                // Headings
-                const secMatch = processedLine.match(/^\\section{([^{}]+)}/);
-                if (secMatch) { out.push(`# ${secMatch[1]}`); continue; }
+                // Headings (supports \section to \subparagraph, including unnumbered *)
+                const headingMatch = processedLine.match(/^\\(chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?{((?:[^{}]|{[^{}]*})+)}/);
+                if (headingMatch) {
+                    const headingType = headingMatch[1];
+                    const headingText = headingMatch[2];
 
-                const subSecMatch = processedLine.match(/^\\subsection{([^{}]+)}/);
-                if (subSecMatch) { out.push(`## ${subSecMatch[1]}`); continue; }
+                    // Map LaTeX hierarchical levels to Markdown header levels (# to #####)
+                    const headingMap = {
+                        'chapter': '#',       // Usually # in Markdown (if book/report class)
+                        'section': '#',       // # or ## depending on document class
+                        'subsection': '##',
+                        'subsubsection': '###',
+                        'paragraph': '####',
+                        'subparagraph': '#####'
+                    };
 
-                const subSubSecMatch = processedLine.match(/^\\subsubsection{([^{}]+)}/);
-                if (subSubSecMatch) { out.push(`### ${subSubSecMatch[1]}`); continue; }
+                    out.push(`${headingMap[headingType]} ${headingText}`);
+                    continue;
+                }
 
                 // Lists (Itemize / Enumerate)
                 if (processedLine.includes('\\begin{itemize}')) { state.type = 'ul'; continue; }
