@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX to Markdown Converter</title>
+    <link rel="icon" href="https://nuwanjanaka.info/wp-content/uploads/2016/10/cropped-SiteIcon1-180x180.png"
+          type="image/png">
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #e9f0f9;
+            --accent-color: #ff6b6b;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+            --card-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        h5 {
+            text-align: center;
+            color: #666;
+            margin-bottom: 25px;
+            font-weight: 400;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 900px) {
+            .container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .home-menu {
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--primary-color);
+        }
+
+        .home-menu:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .home-menu .icon {
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .controls, .results {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        textarea {
+            width: 100%;
+            flex-grow: 1;
+            min-height: 500px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.95rem;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px var(--secondary-color);
+        }
+
+        .input-area {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background-color: #2b2b2b;
+            color: #a9b7c6;
+        }
+
+        .output-area {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #fafafa;
+            color: #333;
+        }
+
+        .action-button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+
+        .action-button:hover:not(:disabled) {
+            background-color: #3b5a8c;
+        }
+
+        .action-button:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .button-group .action-button {
+            flex: 1;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #5a6268;
+        }
+
+        .status-message {
+            font-size: 0.85rem;
+            margin-top: 10px;
+            min-height: 20px;
+            font-weight: 500;
+        }
+
+        .status-message.success {
+            color: #2e7d32;
+        }
+
+        .status-message.error {
+            color: var(--accent-color);
+        }
+
+        .status-message.info {
+            color: var(--primary-color);
+        }
+
+        .subtitle {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<a href="../" class="home-menu">
+        <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline
+                    points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        </span>
+    <span>Back to Home</span>
+</a>
+
+<h1>LaTeX to Markdown Converter</h1>
+<h5>Convert academic LaTeX code, citations, lists, and tables back into readable Markdown.</h5>
+
+<div class="container">
+    <div class="controls">
+        <h2>
+            1. Input LaTeX
+            <span style="font-size: 0.8rem; font-weight: 400; color: #a9b7c6;">Auto-converts on typing</span>
+        </h2>
+        <textarea id="latexInput" class="input-area"
+                  placeholder="Paste your LaTeX code here...&#10;&#10;\section{Methodology}&#10;&#10;This is an example \cite{smith2024}.&#10;% This comment will be removed&#10;But 100\% escaped percentages remain.&#10;&#10;\begin{itemize}&#10;    \item First point&#10;    \item Second point&#10;\end{itemize}"></textarea>
+
+        <div class="button-group">
+            <button id="convertBtn" class="action-button">Convert Now</button>
+            <button id="clearBtn" class="action-button btn-secondary">Clear</button>
+        </div>
+        <div id="inputStatus" class="status-message info">Ready for input.</div>
+    </div>
+
+    <div class="results">
+        <h2>2. Markdown Output</h2>
+        <textarea id="mdOutput" class="output-area" readonly
+                  placeholder="Your generated Markdown will appear here..."></textarea>
+
+        <button id="copyBtn" class="action-button" disabled>Copy to Clipboard</button>
+        <div id="outputStatus" class="status-message"></div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const latexInput = document.getElementById('latexInput');
+        const mdOutput = document.getElementById('mdOutput');
+        const convertBtn = document.getElementById('convertBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const outputStatus = document.getElementById('outputStatus');
+        const inputStatus = document.getElementById('inputStatus');
+
+        // --- Parser Core Logic ---
+        function processInlineLatex(text) {
+            // 1. Remove comments (Lines ending or inline comments starting with unescaped %)
+            // Uses negative lookbehind to ensure we don't match \%
+            let res = text.replace(/(?<!\\)%.*/g, '');
+
+            // 2. Unescape percentages
+            res = res.replace(/\\%/g, '%');
+
+            // 3. Bold (\textbf{text})
+            res = res.replace(/\\textbf{([^{}]+)}/g, '**$1**');
+
+            // 4. Italic (\textit{text} or \emph{text})
+            res = res.replace(/\\textit{([^{}]+)}/g, '*$1*');
+            res = res.replace(/\\emph{([^{}]+)}/g, '*$1*');
+
+            // 5. Links (\href{url}{text})
+            res = res.replace(/\\href{([^{}]+)}{([^{}]+)}/g, '[$2]($1)');
+
+            // 6. Cross-referencing (\ref{key})
+            res = res.replace(/\\ref{([^{}]+)}/g, '[$1]');
+
+            // 7. Citations (\cite{key1,key2})
+            res = res.replace(/\\cite{([^{}]+)}/g, '[$1]');
+
+            return res.trim();
+        }
+
+        function convertToMarkdown(latex) {
+            if (!latex || latex.trim() === '') return '';
+
+            // Initial cleanup for block-level processing
+            const lines = latex.split('\n');
+            const out = [];
+            const state = { type: null, listIndex: 1, tableRows: [], figData: {} };
+
+            for (let i = 0; i < lines.length; i++) {
+                let rawLine = lines[i];
+                let processedLine = processInlineLatex(rawLine);
+
+                // If line was entirely a comment and is now empty, skip (unless it was explicitly a blank line)
+                if (rawLine.trim() !== '' && processedLine === '') continue;
+
+                // Blank lines
+                if (processedLine === '') {
+                    if (!state.type) {
+                        // Avoid multiple consecutive blank lines
+                        if (out.length > 0 && out[out.length - 1] !== '') {
+                            out.push('');
+                        }
+                    }
+                    continue;
+                }
+
+                // Headings
+                const secMatch = processedLine.match(/^\\section{([^{}]+)}/);
+                if (secMatch) { out.push(`# ${secMatch[1]}`); continue; }
+
+                const subSecMatch = processedLine.match(/^\\subsection{([^{}]+)}/);
+                if (subSecMatch) { out.push(`## ${subSecMatch[1]}`); continue; }
+
+                const subSubSecMatch = processedLine.match(/^\\subsubsection{([^{}]+)}/);
+                if (subSubSecMatch) { out.push(`### ${subSubSecMatch[1]}`); continue; }
+
+                // Lists (Itemize / Enumerate)
+                if (processedLine.includes('\\begin{itemize}')) { state.type = 'ul'; continue; }
+                if (processedLine.includes('\\begin{enumerate}')) { state.type = 'ol'; state.listIndex = 1; continue; }
+                if (processedLine.includes('\\end{itemize}') || processedLine.includes('\\end{enumerate}')) {
+                    state.type = null;
+                    out.push(''); // Add spacing after list
+                    continue;
+                }
+
+                if (processedLine.trim().startsWith('\\item')) {
+                    // Extract text after \item
+                    let itemContent = processedLine.replace(/^\\item\s*/, '');
+                    if (state.type === 'ul') {
+                        out.push(`* ${itemContent}`);
+                    } else if (state.type === 'ol') {
+                        out.push(`${state.listIndex}. ${itemContent}`);
+                        state.listIndex++;
+                    } else {
+                        // Fallback if \item is used outside an environment
+                        out.push(`* ${itemContent}`);
+                    }
+                    continue;
+                }
+
+                // Figures
+                if (processedLine.includes('\\begin{figure}')) {
+                    state.type = 'figure';
+                    state.figData = { img: 'image_path', cap: 'Figure' };
+                    continue;
+                }
+                if (state.type === 'figure') {
+                    if (processedLine.includes('\\end{figure}')) {
+                        out.push(`![${state.figData.cap}](${state.figData.img})`);
+                        state.type = null;
+                        continue;
+                    }
+                    // Extract graphic path
+                    const imgMatch = processedLine.match(/\\includegraphics(?:\[.*?\])?{([^}]+)}/);
+                    if (imgMatch) state.figData.img = imgMatch[1];
+
+                    // Extract caption
+                    const capMatch = processedLine.match(/\\caption{([^}]+)}/);
+                    if (capMatch) state.figData.cap = capMatch[1];
+                    continue;
+                }
+
+                // Tables
+                // Ignore float wrappers and layout elements
+                if (processedLine.match(/^\\begin{table}/) || processedLine.match(/^\\end{table}/) ||
+                    processedLine.match(/^\\centering/) || processedLine.match(/^\\small/) ||
+                    processedLine.match(/^\\label{/) || processedLine.match(/^\\caption{/) ||
+                    processedLine.match(/^\\renewcommand/)) {
+                    continue;
+                }
+
+                // Flexible detection for tabular, tabularx, etc.
+                if (processedLine.match(/\\begin{tabularx?}/)) {
+                    state.type = 'table';
+                    state.tableRows = [];
+                    continue;
+                }
+
+                if (state.type === 'table') {
+                    if (processedLine.match(/\\end{tabularx?}/)) {
+                        // Render the markdown table
+                        if (state.tableRows.length > 0) {
+                            out.push(`| ${state.tableRows[0].join(' | ')} |`);
+                            out.push(`| ${state.tableRows[0].map(() => '---').join(' | ')} |`);
+                            for (let j = 1; j < state.tableRows.length; j++) {
+                                out.push(`| ${state.tableRows[j].join(' | ')} |`);
+                            }
+                            out.push('');
+                        }
+                        state.type = null;
+                        continue;
+                    }
+
+                    // Ignore standard LaTeX table borders
+                    if (processedLine.match(/\\hline/) || processedLine.match(/\\(top|mid|bottom)rule/) ||
+                        processedLine.includes('\\addlinespace')) {
+                        continue;
+                    }
+
+                    // Clean up \parbox[position]{width}{content} inside cells by extracting just the content
+                    processedLine = processedLine.replace(/\\parbox(?:\[.*?\])?{[^}]+}{(.*?)}/g, '$1');
+
+                    // Replace explicit internal line breaks '\\' inside cell text with a space
+                    // before parsing the actual row delimiter
+                    processedLine = processedLine.replace(/\\\\(?!\s*$)/g, ' ');
+
+                    // Process table row split by '&' (ignoring escaped '\&')
+                    let rowText = processedLine.replace(/\\\\$/, '').trim(); // Remove trailing \\
+                    if (rowText) {
+                        // Use negative lookbehind (?<!\\) to split ONLY on unescaped ampersands
+                        let cells = rowText.split(/(?<!\\)&/).map(cell => {
+                            let cleanCell = cell.trim();
+
+                            // Clean up common cell bold overrides
+                            cleanCell = cleanCell.replace(/^\\bfseries\s*/, '');
+
+                            // Finally, unescape any literal ampersands for clean Markdown
+                            cleanCell = cleanCell.replace(/\\&/g, '&');
+
+                            return cleanCell;
+                        });
+                        state.tableRows.push(cells);
+                    }
+                    continue;
+                }
+
+                // Normal Text (if not inside an exclusive block state)
+                if (!state.type) {
+                    out.push(processedLine);
+                }
+            }
+
+            return out.join('\n').replace(/\n{3,}/g, '\n\n'); // Cleanup multiple blank lines
+        }
+
+        // --- UI Interaction Logic ---
+        function executeConversion() {
+            const ltxText = latexInput.value;
+            if (!ltxText.trim()) {
+                mdOutput.value = '';
+                copyBtn.disabled = true;
+                inputStatus.textContent = 'Awaiting input...';
+                inputStatus.className = 'status-message';
+                return;
+            }
+
+            try {
+                const result = convertToMarkdown(ltxText);
+                mdOutput.value = result;
+                copyBtn.disabled = false;
+                inputStatus.textContent = 'Successfully converted!';
+                inputStatus.className = 'status-message success';
+                outputStatus.textContent = '';
+            } catch (error) {
+                mdOutput.value = '\n';
+                copyBtn.disabled = true;
+                inputStatus.textContent = 'Conversion failed. Check formatting.';
+                inputStatus.className = 'status-message error';
+            }
+        }
+
+        // Debounce for Auto-convert
+        let debounceTimer;
+        latexInput.addEventListener('input', () => {
+            inputStatus.textContent = 'Typing...';
+            inputStatus.className = 'status-message info';
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(executeConversion, 500);
+        });
+
+        // Manual triggers
+        convertBtn.addEventListener('click', executeConversion);
+
+        clearBtn.addEventListener('click', () => {
+            latexInput.value = '';
+            executeConversion();
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const textToCopy = mdOutput.value;
+            if (!textToCopy) return;
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copied!';
+                copyBtn.style.backgroundColor = '#2e7d32'; // Success green
+                outputStatus.textContent = 'Markdown copied to clipboard.';
+                outputStatus.className = 'status-message success';
+
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.backgroundColor = 'var(--primary-color)';
+                    outputStatus.textContent = '';
+                }, 2000);
+            }).catch(err => {
+                outputStatus.textContent = 'Failed to copy text: ' + err;
+                outputStatus.className = 'status-message error';
+            });
+        });
+    });
+</script>
+
+<p class="subtitle">
+    <strong>Note:</strong> This is a static web page that <strong>runs locally</strong> in your browser — <em>no data is
+    sent to any server</em>. If preferred, you can also download it as an HTML file and run it offline or clone from <a
+        href="https://github.com/janakanuwan/Web-Tools" target="_blank" rel="noopener noreferrer">Web-Tools</a> (MIT
+    License).
+</p>
+</body>
+</html>
