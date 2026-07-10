@@ -253,53 +253,155 @@
         const outputStatus = document.getElementById('outputStatus');
         const inputStatus = document.getElementById('inputStatus');
 
+
+        // Helper to replace LaTeX commands recursively
+        function replaceLatexCommand(text, command, mdOpen, mdClose) {
+            const target = `\\${command}{`;
+            let result = text;
+            let startIndex = result.indexOf(target);
+
+            while (startIndex !== -1) {
+                let openBraces = 1;
+                let i = startIndex + target.length;
+
+                // Traverse the string to find the matching closing brace
+                while (i < result.length && openBraces > 0) {
+                    // Ignore escaped braces \{ and \}
+                    if (result[i] === '{' && result[i - 1] !== '\\') openBraces++;
+                    if (result[i] === '}' && result[i - 1] !== '\\') openBraces--;
+                    i++;
+                }
+
+                if (openBraces === 0) {
+                    // Extract inner content (excluding the surrounding braces)
+                    const innerContent = result.substring(startIndex + target.length, i - 1);
+
+                    // Reconstruct the string with Markdown wrappers
+                    result = result.substring(0, startIndex) +
+                             mdOpen + innerContent + mdClose +
+                             result.substring(i);
+
+                    // Search again to catch identical commands nested inside each other
+                    startIndex = result.indexOf(target);
+                } else {
+                    // Unbalanced braces detected (bad LaTeX syntax), break to prevent infinite loops
+                    break;
+                }
+            }
+
+            return result;
+        }
+
         // --- Parser Core Logic ---
         function processInlineLatex(text) {
-            // 1. Remove comments (Lines ending or inline comments starting with unescaped %)
-            // Uses negative lookbehind to ensure we don't match \%
-            let res = text.replace(/(?<!\\)%.*/g, '');
+            let res = text;
 
-            // 2. Unescape percentages
+            // 1. Remove comments and unescape percentages
+            // Uses negative lookbehind to ensure we don't match \%
+            res = res.replace(/(?<!\\)%.*/g, '');
             res = res.replace(/\\%/g, '%');
 
-            // 3. Bold (\textbf{text})
-            res = res.replace(/\\textbf{([^{}]+)}/g, '**$1**');
+            // 2. Stack-based replacements for nested formatting
+            // Safely handles \textbf{\textit{...}} or deeply nested combinations
+            res = replaceLatexCommand(res, 'textbf', '**', '**');
+            res = replaceLatexCommand(res, 'textit', '*', '*');
+            res = replaceLatexCommand(res, 'emph', '*', '*');
+            res = replaceLatexCommand(res, 'underline', '<u>', '</u>');
+            res = replaceLatexCommand(res, 'textsc', '', ''); // Fallback for small caps
+            res = replaceLatexCommand(res, 'footnote', ' (', ')');
 
-            // 4. Italic (\textit{text} or \emph{text})
-            res = res.replace(/\\textit{([^{}]+)}/g, '*$1*');
-            res = res.replace(/\\emph{([^{}]+)}/g, '*$1*');
+            // 3. Links (\href{url}{text})
+            // Regex is usually safe here as URLs rarely contain complex nested LaTeX
+            res = res.replace(/\\href{([^{}]+)}{((?:[^{}]+|{[^{}]*})*)}/g, '[$2]($1)');
 
-            // 5. Links (\href{url}{text})
-            res = res.replace(/\\href{([^{}]+)}{([^{}]+)}/g, '[$2]($1)');
-
-            // 6. Cross-referencing (\ref{key})
-            res = res.replace(/\\ref{([^{}]+)}/g, '[$1]');
-
-            // 7. Citations (\cite{key1,key2})
+            // 4. Citations and Cross-references (Flat structures)
+            res = res.replace(/\\(?:Cref|cref|autoref|ref){([^{}]+)}/g, '[$1]');
             res = res.replace(/\\cite{([^{}]+)}/g, '[$1]');
 
+            // 5. Smart quotes and dashes
+            res = res.replace(/``/g, '"').replace(/''/g, '"');
+            res = res.replace(/---/g, '—').replace(/--/g, '–');
+
             return res.trim();
+        }
+
+        // Normalizes raw LaTeX so the line-based parser below can rely on
+        // one logical statement per line.
+        function normalizeLatex(latex) {
+            let text = latex;
+
+            // Strips comments, and if the comment is on its own line, strips the newline too.
+            text = text.replace(/^[ \t]*(?<!\\)%.*\r?\n/gm, '');
+            // Catch inline comments (at the end of a line)
+            text = text.replace(/(?<!\\)%.*/g, '');
+
+            // 1. Force line breaks after \begin{...}, \end{...} so compact
+            //    single-line environments don't get skipped.
+            text = text.replace(/(\\begin{[^{}]+}(?:\[[^\]]*\])?)/g, '$1\n');
+            text = text.replace(/(\\end{[^{}]+})/g, '\n$1\n');
+
+            // 2. Force a line break before each \item so multiple items on
+            //    one line are treated separately.
+            text = text.replace(/(?<!^)\\item\b/gm, '\n\\item');
+
+            // 3. Join lines whose braces are left unbalanced (wrapped commands
+            //    like a multi-line \caption{...} or \section{...}).
+            const rawLines = text.split('\n');
+            const merged = [];
+            let buffer = '';
+            let openBraces = 0;
+
+            for (const line of rawLines) {
+
+                const opens = (line.match(/(?<!\\){/g) || []).length;
+                const closes = (line.match(/(?<!\\)}/g) || []).length;
+                buffer = buffer ? buffer + ' ' + line.trim() : line;
+                openBraces += opens - closes;
+
+                if (openBraces <= 0) {
+                    merged.push(buffer);
+                    buffer = '';
+                    openBraces = 0;
+                }
+            }
+            if (buffer) merged.push(buffer); // flush any trailing unbalanced content
+
+            return merged.join('\n');
         }
 
         function convertToMarkdown(latex) {
             if (!latex || latex.trim() === '') return '';
 
-            // Initial cleanup for block-level processing
-            const lines = latex.split('\n');
+            const lines = normalizeLatex(latex).split('\n');
             const out = [];
-            const state = { type: null, listIndex: 1, tableRows: [], figData: {} };
+
+            // Extended state tracking to collect caption/label context safely
+            const state = {
+                type: null,
+                listStack: [],
+                tableRows: [],
+                codeLines: [],
+                figData: {},
+                currentEnv: null,  // Tracks 'table', 'figure', 'listing', etc.
+                envName: "",       // Capitalized wrapper name
+                envCaption: "",    // Temporary placeholder for caption text
+                envLabel: ""       // Temporary placeholder for key string
+            };
 
             for (let i = 0; i < lines.length; i++) {
                 let rawLine = lines[i];
                 let processedLine = processInlineLatex(rawLine);
 
-                // If line was entirely a comment and is now empty, skip (unless it was explicitly a blank line)
                 if (rawLine.trim() !== '' && processedLine === '') continue;
+
+                // Skip preamble/document-wrapper commands entirely
+                if (/^\\(documentclass|usepackage|begin{document}|end{document}|maketitle|title|author|date)\b/.test(processedLine.trim())) {
+                    continue;
+                }
 
                 // Blank lines
                 if (processedLine === '') {
                     if (!state.type) {
-                        // Avoid multiple consecutive blank lines
                         if (out.length > 0 && out[out.length - 1] !== '') {
                             out.push('');
                         }
@@ -313,10 +415,9 @@
                     const headingType = headingMatch[1];
                     const headingText = headingMatch[2];
 
-                    // Map LaTeX hierarchical levels to Markdown header levels (# to #####)
                     const headingMap = {
-                        'chapter': '#',       // Usually # in Markdown (if book/report class)
-                        'section': '#',       // # or ## depending on document class
+                        'chapter': '#',
+                        'section': '#',
                         'subsection': '##',
                         'subsubsection': '###',
                         'paragraph': '####',
@@ -327,123 +428,171 @@
                     continue;
                 }
 
-                // Lists (Itemize / Enumerate)
-                if (processedLine.includes('\\begin{itemize}')) { state.type = 'ul'; continue; }
-                if (processedLine.includes('\\begin{enumerate}')) { state.type = 'ol'; state.listIndex = 1; continue; }
+                // Lists (Itemize / Enumerate) — now stack-based to support nesting
+                if (processedLine.includes('\\begin{itemize}')) {
+                    state.listStack.push({ type: 'ul', index: 1 });
+                    state.type = 'ul';
+                    continue;
+                }
+                if (processedLine.includes('\\begin{enumerate}')) {
+                    state.listStack.push({ type: 'ol', index: 1 });
+                    state.type = 'ol';
+                    continue;
+                }
                 if (processedLine.includes('\\end{itemize}') || processedLine.includes('\\end{enumerate}')) {
-                    state.type = null;
-                    out.push(''); // Add spacing after list
+                    state.listStack.pop();
+                    state.type = state.listStack.length ? state.listStack[state.listStack.length - 1].type : null;
+                    if (!state.listStack.length) out.push('');
                     continue;
                 }
 
                 if (processedLine.trim().startsWith('\\item')) {
-                    // Extract text after \item
                     let itemContent = processedLine.replace(/^\\item\s*/, '');
-                    if (state.type === 'ul') {
-                        out.push(`* ${itemContent}`);
-                    } else if (state.type === 'ol') {
-                        out.push(`${state.listIndex}. ${itemContent}`);
-                        state.listIndex++;
+                    const depth = Math.max(0, state.listStack.length - 1);
+                    const indent = '    '.repeat(depth); // 4 spaces for better Markdown compatibility
+                    const current = state.listStack[state.listStack.length - 1];
+
+                    if (current && current.type === 'ol') {
+                        out.push(`${indent}${current.index}. ${itemContent}`);
+                        current.index++;
                     } else {
-                        // Fallback if \item is used outside an environment
-                        out.push(`* ${itemContent}`);
+                        out.push(`${indent}* ${itemContent}`);
                     }
                     continue;
                 }
 
-                // Figures
-                if (processedLine.includes('\\begin{figure}')) {
-                    state.type = 'figure';
-                    state.figData = { img: 'image_path', cap: 'Figure' };
-                    continue;
-                }
-                if (state.type === 'figure') {
-                    if (processedLine.includes('\\end{figure}')) {
-                        out.push(`![${state.figData.cap}](${state.figData.img})`);
-                        state.type = null;
-                        continue;
+                // --- Core Wrapper Block Handlers (Tables, Figures, Listings) ---
+                const envBeginMatch = processedLine.match(/\\begin{(table\*?|figure\*?|listing|lstlisting)}/);
+                if (envBeginMatch) {
+                    state.currentEnv = envBeginMatch[1]; // keep the raw name (with *) for matching \end{...}
+                    const baseName = state.currentEnv.replace('*', '');
+                    state.envName = baseName.charAt(0).toUpperCase() + baseName.slice(1).replace('lstlisting', 'Listing');
+                    state.envCaption = "";
+                    state.envLabel = "";
+
+                    if (state.currentEnv === 'table') {
+                        state.type = 'table';
+                        state.tableRows = [];
+                    } else if (state.currentEnv === 'figure') {
+                        state.type = 'figure';
+                        state.figData = { img: '' }; // Clear the hardcoded string
+                    } else if (state.currentEnv === 'listing' || state.currentEnv === 'lstlisting') {
+                        state.type = 'listing';
+                        state.codeLines = []; // Array to hold code block text
                     }
-                    // Extract graphic path
-                    const imgMatch = processedLine.match(/\\includegraphics(?:\[.*?\])?{([^}]+)}/);
-                    if (imgMatch) state.figData.img = imgMatch[1];
-
-                    // Extract caption
-                    const capMatch = processedLine.match(/\\caption{([^}]+)}/);
-                    if (capMatch) state.figData.cap = capMatch[1];
                     continue;
                 }
 
-                // Tables
-                // Ignore float wrappers and layout elements
-                if (processedLine.match(/^\\begin{table}/) || processedLine.match(/^\\end{table}/) ||
-                    processedLine.match(/^\\centering/) || processedLine.match(/^\\small/) ||
-                    processedLine.match(/^\\label{/) || processedLine.match(/^\\caption{/) ||
-                    processedLine.match(/^\\renewcommand/)) {
-                    continue;
-                }
-
-                // Flexible detection for tabular, tabularx, etc.
-                if (processedLine.match(/\\begin{tabularx?}/)) {
-                    state.type = 'table';
-                    state.tableRows = [];
-                    continue;
-                }
-
-                if (state.type === 'table') {
-                    if (processedLine.match(/\\end{tabularx?}/)) {
-                        // Render the markdown table
+                // Safely extract Caption and Label text inside a float environment block
+                // Unified Environment Block Handler
+                if (state.currentEnv && processedLine.includes(`\\end{${state.currentEnv}}`)) {
+                    if (state.type === 'figure') {
+                        let metaBlock = `**${state.envName} [${state.envLabel || 'unlabeled'}]:** ${state.envCaption || 'No caption'}`;
+                        // Only push the image if an \includegraphics was actually found
+                        let imgSyntax = state.figData.img ? `![${state.envCaption || 'Image'}](${state.figData.img})` : '';
+                        out.push(metaBlock, '', imgSyntax);
+                    } else if (state.type === 'table') {
+                        let metaBlock = `**${state.envName} [${state.envLabel || 'unlabeled'}]:** ${state.envCaption || 'No caption'}`;
+                        out.push(metaBlock, '');
                         if (state.tableRows.length > 0) {
-                            out.push(`| ${state.tableRows[0].join(' | ')} |`);
-                            out.push(`| ${state.tableRows[0].map(() => '---').join(' | ')} |`);
+                            const maxCols = Math.max(...state.tableRows.map(r => r.length));
+                            const pad = row => [...row, ...Array(maxCols - row.length).fill('')];
+
+                            out.push(`| ${pad(state.tableRows[0]).join(' | ')} |`);
+                            out.push(`| ${Array(maxCols).fill('---').join(' | ')} |`);
                             for (let j = 1; j < state.tableRows.length; j++) {
-                                out.push(`| ${state.tableRows[j].join(' | ')} |`);
+                                out.push(`| ${pad(state.tableRows[j]).join(' | ')} |`);
                             }
-                            out.push('');
                         }
-                        state.type = null;
+                    } else if (state.type === 'listing') {
+                        out.push('```'); // Open markdown code block
+                        out.push(...state.codeLines);
+                        out.push('```'); // Close markdown code block
+                    }
+                    state.type = null;
+                    state.currentEnv = null;
+                    continue;
+                }
+
+                // Tables Context Configuration
+                if (state.type === 'table') {
+                    // 1. Extract Captions and Labels inside the table environment
+                    const capMatch = processedLine.match(/\\caption(?:\[.*?\])?{((?:[^{}]+|{[^{}]*})+)}/);
+                    if (capMatch) state.envCaption = capMatch[1];
+
+                    const labMatch = processedLine.match(/\\label{([^{}]+)}/);
+                    if (labMatch) state.envLabel = labMatch[1];
+
+                    // 2. Ignore structural/aesthetic commands so they don't leak into markdown
+                    if (processedLine.match(/^\\(?:hline|toprule|midrule|bottomrule|addlinespace|centering|small|renewcommand)/) ||
+                        processedLine.match(/\\begin{tabularx?}/) ||
+                        processedLine.match(/\\end{tabularx?}/) ||
+                        processedLine.match(/^\\end{table}/)) {
                         continue;
                     }
 
-                    // Ignore standard LaTeX table borders
-                    if (processedLine.match(/\\hline/) || processedLine.match(/\\(top|mid|bottom)rule/) ||
-                        processedLine.includes('\\addlinespace')) {
-                        continue;
+                    // 3. Handle \parbox by extracting ONLY the content in the last set of braces
+                    // e.g., \parbox[t]{5cm}{Actual Content} -> Actual Content
+                    let cleanLine = processedLine;
+                    if (cleanLine.includes('\\parbox')) {
+                        cleanLine = cleanLine.replace(/\\parbox(?:\[.*?\])?{.*?}{((?:[^{}]+|{[^{}]*})*)}/g, '$1');
                     }
 
-                    // Clean up \parbox[position]{width}{content} inside cells by extracting just the content
-                    processedLine = processedLine.replace(/\\parbox(?:\[.*?\])?{[^}]+}{(.*?)}/g, '$1');
+                    // 4. Capture Table Rows (Lines containing & separators)
+                    if (cleanLine.includes('&')) {
+                        // Strip the trailing row break command (\\) or (\cr)
+                        cleanLine = cleanLine.replace(/\\\\[ \t]*(\[.*?\])?$/, '').trim();
 
-                    // Replace explicit internal line breaks '\\' inside cell text with a space
-                    // before parsing the actual row delimiter
-                    processedLine = processedLine.replace(/\\\\(?!\s*$)/g, ' ');
-
-                    // Process table row split by '&' (ignoring escaped '\&')
-                    let rowText = processedLine.replace(/\\\\$/, '').trim(); // Remove trailing \\
-                    if (rowText) {
-                        // Use negative lookbehind (?<!\\) to split ONLY on unescaped ampersands
-                        let cells = rowText.split(/(?<!\\)&/).map(cell => {
-                            let cleanCell = cell.trim();
-
-                            // Clean up common cell bold overrides
-                            cleanCell = cleanCell.replace(/^\\bfseries\s*/, '');
-
-                            // Finally, unescape any literal ampersands for clean Markdown
-                            cleanCell = cleanCell.replace(/\\&/g, '&');
-
-                            return cleanCell;
-                        });
+                        // Split columns by & (ignoring escaped \&)
+                        let cells = cleanLine.split(/(?<!\\)&/).map(cell =>
+                            cell.trim()
+                                .replace(/\\&/g, '&')   // restore literal ampersands
+                                .replace(/\|/g, '\\|')  // escape pipes so they don't break Markdown table syntax
+                        );
                         state.tableRows.push(cells);
                     }
+
+                    // Continue absorbing lines so table formatting doesn't leak into normal text parsing
                     continue;
                 }
 
-                // Normal Text (if not inside an exclusive block state)
-                if (!state.type) {
-                    out.push(processedLine);
+                // Figures Context Configuration
+                if (state.type === 'figure') {
+                    const capMatch = processedLine.match(/\\caption(?:\[.*?\])?{((?:[^{}]+|{[^{}]*})+)}/);
+                    if (capMatch) state.envCaption = capMatch[1];
+
+                    const labMatch = processedLine.match(/\\label{([^{}]+)}/);
+                    if (labMatch) state.envLabel = labMatch[1];
+
+                    // Extract the image path from \includegraphics
+                    // Handles optional arguments like \includegraphics[width=0.8\textwidth]{path/to/img}
+                    const imgMatch = processedLine.match(/\\includegraphics(?:\[.*?\])?{([^{}]+)}/);
+                    if (imgMatch) state.figData.img = imgMatch[1];
+
+                    continue;
+                }
+
+                // Listings Context Configuration
+                if (state.type === 'listing') {
+                    // Push the raw line (not the processed one, so we don't accidentally parse LaTeX inside code comments)
+                    state.codeLines.push(rawLine);
+                    continue;
+                }
+
+
+                // Normal Text handling (Allows multiline list items to print)
+                if (!state.type || state.type === 'ul' || state.type === 'ol') {
+                    let prefix = '';
+                    // If we are currently inside a list, indent the continuation text
+                    if (state.type === 'ul' || state.type === 'ol') {
+                        const depth = Math.max(0, state.listStack.length - 1);
+                        prefix = '    '.repeat(depth) + '  '; // 4 spaces for indent, plus 2 to align with "* "
+                    }
+                    out.push(prefix + processedLine);
                 }
             }
 
-            return out.join('\n').replace(/\n{3,}/g, '\n\n'); // Cleanup multiple blank lines
+            return out.join('\n').replace(/\n{3,}/g, '\n\n');
         }
 
         // --- UI Interaction Logic ---
@@ -465,9 +614,10 @@
                 inputStatus.className = 'status-message success';
                 outputStatus.textContent = '';
             } catch (error) {
+                console.error("LaTeX Conversion Error:", error);
                 mdOutput.value = '\n';
                 copyBtn.disabled = true;
-                inputStatus.textContent = 'Conversion failed. Check formatting.';
+                inputStatus.textContent = 'Conversion failed. Check console for details.';
                 inputStatus.className = 'status-message error';
             }
         }
@@ -477,8 +627,11 @@
         latexInput.addEventListener('input', () => {
             inputStatus.textContent = 'Typing...';
             inputStatus.className = 'status-message info';
+
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(executeConversion, 500);
+            debounceTimer = setTimeout(() => {
+                executeConversion();
+            }, 1000);
         });
 
         // Manual triggers
@@ -493,22 +646,34 @@
             const textToCopy = mdOutput.value;
             if (!textToCopy) return;
 
-            navigator.clipboard.writeText(textToCopy).then(() => {
+            function showCopied() {
                 const originalText = copyBtn.textContent;
                 copyBtn.textContent = 'Copied!';
-                copyBtn.style.backgroundColor = '#2e7d32'; // Success green
+                copyBtn.style.backgroundColor = '#2e7d32';
                 outputStatus.textContent = 'Markdown copied to clipboard.';
                 outputStatus.className = 'status-message success';
-
                 setTimeout(() => {
                     copyBtn.textContent = originalText;
                     copyBtn.style.backgroundColor = 'var(--primary-color)';
                     outputStatus.textContent = '';
                 }, 2000);
-            }).catch(err => {
-                outputStatus.textContent = 'Failed to copy text: ' + err;
+            }
+
+            function fallbackCopy() {
+                mdOutput.select();
+                try {
+                    const ok = document.execCommand('copy');
+                    if (ok) { showCopied(); return; }
+                } catch (e) { /* fall through to error */ }
+                outputStatus.textContent = 'Failed to copy text. Please copy manually.';
                 outputStatus.className = 'status-message error';
-            });
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textToCopy).then(showCopied).catch(fallbackCopy);
+            } else {
+                fallbackCopy();
+            }
         });
     });
 </script>
