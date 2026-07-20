@@ -310,6 +310,18 @@
             extractBtn.addEventListener('click', runExtraction);
             copyBtn.addEventListener('click', copySecondaryOutput);
 
+            // Auto-extract with a 1-second debounce
+            let typingTimer;
+            lookupValuesInput.addEventListener('input', () => {
+                clearTimeout(typingTimer); // Clear the previous timer on every keystroke
+                typingTimer = setTimeout(() => {
+                    // Only run if data is loaded and the button isn't disabled
+                    if (sheetData.length > 0 && !extractBtn.disabled) {
+                        runExtraction();
+                    }
+                }, 1000); // Wait 1 second (1000ms) after the user stops typing
+            });
+
             function handleUpload(e) {
                 const file = e.target.files[0];
                 if (!file) return;
