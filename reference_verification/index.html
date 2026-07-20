@@ -658,15 +658,41 @@ Brown, K. (2022). Data Science Fundamentals..."></textarea>
 
     // Helper to extract JSON from markdown code blocks
     function safeJSONParse(text) {
+        let cleanText = text.trim();
+
+        // Strip markdown code blocks if the LLM includes them despite JSON mode
+        if (cleanText.startsWith('```json')) {
+            cleanText = cleanText.replace(/```json\n?/, '').replace(/```\n?$/, '');
+        } else if (cleanText.startsWith('```')) {
+            cleanText = cleanText.replace(/```\n?/, '').replace(/```\n?$/, '');
+        }
+
         try {
-            return JSON.parse(text);
+            return JSON.parse(cleanText);
         } catch (e) {
-            const firstBracket = text.indexOf('[');
-            const lastBracket = text.lastIndexOf(']');
-            if (firstBracket !== -1 && lastBracket !== -1) {
-                return JSON.parse(text.substring(firstBracket, lastBracket + 1));
+            console.warn("Standard JSON parse failed, attempting recovery...");
+            try {
+                // Attempt to recover a truncated JSON array
+                const firstBracket = cleanText.indexOf('[');
+                if (firstBracket !== -1) {
+                    let recovered = cleanText.substring(firstBracket);
+
+                    if (!recovered.endsWith(']')) {
+                        // Find the last complete object and close the array
+                        const lastBrace = recovered.lastIndexOf('}');
+                        if (lastBrace !== -1) {
+                            recovered = recovered.substring(0, lastBrace + 1) + ']';
+                            return JSON.parse(recovered);
+                        }
+                    } else {
+                        const lastBracket = recovered.lastIndexOf(']');
+                        return JSON.parse(recovered.substring(0, lastBracket + 1));
+                    }
+                }
+            } catch (recoverError) {
+                console.error("JSON recovery completely failed.", recoverError);
             }
-            throw e;
+            throw e; // Throw the original error if recovery is impossible
         }
     }
 
@@ -862,6 +888,7 @@ FIELDS:
 - id (integer, copy from input)
 - title (string)
 - authors (string, keep original order)
+- venue (string, journal or conference name)
 - year (string, 4 digits or "")
 - doi (string, identifier only, 10.xxx/xxx)
 - url (string)
@@ -875,6 +902,7 @@ OUTPUT FORMAT EXAMPLE:
     "id": 0,
     "title": "Title 1",
     "authors": "Author A; Author B",
+    "venue": "Journal of AI Research",
     "year": "2023",
     "doi": "10.1234/example.doi",
     "url": "https://doi.org/10.1234/example.doi"
@@ -883,6 +911,7 @@ OUTPUT FORMAT EXAMPLE:
     "id": 1,
     "title": "Title 2",
     "authors": "Author C",
+    "venue": "Conference on Machine Learning",
     "year": "2022",
     "doi": "",
     "url": ""
@@ -928,7 +957,7 @@ OUTPUT FORMAT EXAMPLE:
                 const finishReason = candidate?.finishReason || "UNKNOWN";
 
                 console.debug(`LLM Finish Reason: ${finishReason}`);
-                console.debug(`LLM response text: [${text}]`);
+                console.debug(`LLM response text: || ${text} ||`);
                 // If finishReason is "MAX_TOKENS", your batch is too large or the model thought too much.
                 // If finishReason is "SAFETY", it censored a specific academic paper.
                 // If finishReason is "STOP", the model incorrectly thought it was finished.
@@ -958,7 +987,7 @@ OUTPUT FORMAT EXAMPLE:
                         return cleanData;
                     }
                     // Fallback for failed items
-                    return { title: "", authors: "", year: "", doi: "", url: "", error: "Extraction failed" };
+                    return { title: "", authors: "", venue: "", year: "", doi: "", url: "", error: "Extraction failed" };
                 });
 
             } catch (error) {
@@ -988,6 +1017,7 @@ OUTPUT FORMAT EXAMPLE:
             original: reference,
             title: '',
             authors: '',
+            venue: '',
             doi: '',
             url: '',
             year: '',
@@ -1980,6 +2010,9 @@ OUTPUT FORMAT EXAMPLE:
         const feedbackCell = document.getElementById(`feedback-${index}`);
         if (!feedbackCell) return;
 
+        // Fetch original reference for comparison
+        const ref = window.extractedReferences[index];
+
         // Determine status and styling
         let status = 'unverified';
         let icon = '✗';
@@ -2069,6 +2102,42 @@ OUTPUT FORMAT EXAMPLE:
                         <span class="detail-value">${authorIcon} ${escapeHtml(verification.foundAuthors)}</span>
                     </div>
                 `;
+            }
+
+            // Check for Mismatches in Venue, Year, and DOI
+            // 1. Venue Mismatch
+            if (ref.venue && verification.foundVenue) {
+                const venueSim = calculateSimilarity(ref.venue.toLowerCase(), verification.foundVenue.toLowerCase());
+                if (venueSim < 0.7) { // Threshold allows for abbreviations like "J. Artif. Intell." vs "Journal of Artificial Intelligence"
+                    feedbackHTML += `
+                        <div class="detail-row mismatch">
+                            <span class="detail-label">Found Venue:</span>
+                            <span class="detail-value">⚠ ${escapeHtml(verification.foundVenue)}</span>
+                        </div>
+                    `;
+                }
+            }
+            // 2. Year Mismatch
+            if (ref.year && verification.foundYear && String(ref.year) !== String(verification.foundYear)) {
+                feedbackHTML += `
+                    <div class="detail-row mismatch">
+                        <span class="detail-label">Found Year:</span>
+                        <span class="detail-value">⚠ ${escapeHtml(String(verification.foundYear))}</span>
+                    </div>
+                `;
+            }
+            // 3. DOI Mismatch
+            if (ref.doi && verification.foundDoi) {
+                const cleanRefDoi = ref.doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//, '').toLowerCase();
+                const cleanFoundDoi = verification.foundDoi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//, '').toLowerCase();
+                if (cleanRefDoi !== cleanFoundDoi) {
+                    feedbackHTML += `
+                        <div class="detail-row mismatch">
+                            <span class="detail-label">Found DOI:</span>
+                            <span class="detail-value">⚠ ${escapeHtml(verification.foundDoi)}</span>
+                        </div>
+                    `;
+                }
             }
 
             if (verification.canonicalUrl) {
@@ -2425,6 +2494,9 @@ OUTPUT FORMAT EXAMPLE:
         // Auto-fill DOI if missing
         if (work.DOI && !ref.doi) ref.doi = work.DOI;
 
+        const foundVenue = work['container-title']?.[0] || '';
+        const foundDoi = work.DOI || '';
+
         return {
             verified: true,
             confidence,
@@ -2432,6 +2504,9 @@ OUTPUT FORMAT EXAMPLE:
             yearMatch,
             foundTitle,
             foundAuthors,
+            foundVenue,
+            foundDoi,
+            foundYear,
             canonicalUrl: work.DOI ? `https://doi.org/${work.DOI}` : work.URL,
             message: confidence === 'high' ? '✓ Verified via CrossRef' : `⚠ Partial match (${Math.round(titleSim * 100)}%)`,
             source: 'CrossRef',
@@ -2460,7 +2535,7 @@ OUTPUT FORMAT EXAMPLE:
 
         try {
             const query = encodeURIComponent(ref.title);
-            const response = await fetch(`https://api.semanticscholar.org/graph/v1/paper/search?query=${query}&limit=1&fields=title,authors,externalIds,url`);
+            const response = await fetch(`https://api.semanticscholar.org/graph/v1/paper/search?query=${query}&limit=1&fields=title,authors,externalIds,url,venue,year`);
             if (!response.ok) {
                 result.message = 'Semantic Scholar API unavailable';
                 return result;
@@ -2501,10 +2576,16 @@ OUTPUT FORMAT EXAMPLE:
                 }
 
                 result.verified = true;
-                result.confidence = bestSimilarity > 0.9 ? 'high' : bestSimilarity > 0.75 ? 'medium' : 'low';
+                // Calculate initial confidence based on title
+                let calcConfidence = bestSimilarity > 0.9 ? 'high' : (bestSimilarity > 0.75 ? 'medium' : 'low');
+                // Downgrade to medium if authorMatch is false
+                result.confidence = (calcConfidence === 'high' && !authorMatch) ? 'medium' : calcConfidence;
                 result.authorMatch = authorMatch;
                 result.foundTitle = bestMatch.title;
                 result.foundAuthors = authors;
+                result.foundVenue = bestMatch.venue || '';
+                result.foundDoi = bestMatch.externalIds?.DOI || '';
+                result.foundYear = bestMatch.year || '';
                 result.canonicalUrl = bestMatch.externalIds?.DOI
                     ? `https://doi.org/${bestMatch.externalIds.DOI}`
                     : bestMatch.url;
@@ -2560,13 +2641,19 @@ OUTPUT FORMAT EXAMPLE:
                     ? calculateSimilarity(ref.authors.toLowerCase(), authors.toLowerCase())
                     : 1.0;
 
+                const isAuthorMatch = authorSim > 0.5;
+
                 return {
                     verified: true,
-                    confidence: titleSim > 0.9 ? 'high' : 'medium',
-                    authorMatch: authorSim > 0.5,
-                    message: '✓ Verified via OpenAlex',
+                    // Downgrade to medium if authorMatch is false
+                    confidence: (titleSim > 0.9 && isAuthorMatch) ? 'high' : 'medium',
+                    authorMatch: isAuthorMatch,
+                    message: isAuthorMatch ? '✓ Verified via OpenAlex' : '⚠ Verified but author mismatch (OpenAlex)',
                     foundTitle: work.title,
                     foundAuthors: authors,
+                    foundVenue: work.primary_location?.source?.display_name || '',
+                    foundDoi: work.doi || '',
+                    foundYear: work.publication_year || '',
                     canonicalUrl: work.doi || work.primary_location?.landing_page_url,
                     source: 'OpenAlex'
                 };
@@ -2801,7 +2888,7 @@ OUTPUT FORMAT (exact keys and order required):
             const finishReason = candidate?.finishReason || "UNKNOWN";
             console.debug(`LLM Finish Reason: ${finishReason}`);
 
-            console.debug(`LLM response text: [${text}]`);
+            console.debug(`LLM response text: || ${text} ||`);
 
             // Extract JSON from response
             jsonText = text.trim();
@@ -2811,7 +2898,26 @@ OUTPUT FORMAT (exact keys and order required):
                 jsonText = jsonText.replace(/```\n?/g, '').trim();
             }
 
-            const result = JSON.parse(jsonText);
+            let result;
+            try {
+                result = JSON.parse(jsonText);
+                // Just in case it returned perfectly valid JSON but wrapped it in an array
+                if (Array.isArray(result) && result.length > 0) {
+                    result = result[0];
+                }
+            } catch (parseError) {
+                console.warn("Strict JSON parse failed in LLM verification, extracting object...");
+                // Force extract the object by finding the first '{' and last '}'
+                const firstBrace = jsonText.indexOf('{');
+                const lastBrace = jsonText.lastIndexOf('}');
+
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    const cleanObjectText = jsonText.substring(firstBrace, lastBrace + 1);
+                    result = JSON.parse(cleanObjectText);
+                } else {
+                    throw new Error("Could not extract a valid JSON object from LLM response.");
+                }
+            }
 
             const llm_confidence = result.exists ? 'low' : result.confidence || 'low'; // LLM results are not accurate
 
@@ -2996,7 +3102,7 @@ OUTPUT FORMAT (exact keys and order required):
         // }
 
         // 1. Try LLM Extraction first (if API key is available)
-        const BATCH_SIZE = 30;
+        const BATCH_SIZE = 20;
         const hasApiKey = storage.get('geminiApiKey');
 
         if (hasApiKey) {
@@ -3016,6 +3122,7 @@ OUTPUT FORMAT (exact keys and order required):
                             original: references[originalIndex],
                             title: result.title || '',
                             authors: result.authors || '',
+                            venue: result.venue || '',
                             doi: result.doi || '',
                             url: result.url || '',
                             year: result.year || '',
@@ -3027,7 +3134,7 @@ OUTPUT FORMAT (exact keys and order required):
 
                 // Small delay to be nice to the API rate limit between batches
                 if (i + BATCH_SIZE < references.length) {
-                    await new Promise(r => setTimeout(r, 2000));
+                    await new Promise(r => setTimeout(r, 4000));
                 }
             }
         }
