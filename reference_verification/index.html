@@ -2761,6 +2761,116 @@ OUTPUT FORMAT EXAMPLE:
         }
     }
 
+    /**
+     * Parses a JSON object out of a raw LLM text response, tolerating markdown
+     * code fences, invisible unicode characters, truncated/cut-off output,
+     * trailing commas, and nested braces inside string values.
+     * Falls back to a synthetic "not found" result when intent is still inferable
+     * from a mangled response.
+     *
+     * @param {string} text raw LLM response
+     * @returns {object} parsed result object
+     * @throws {Error} if no usable JSON object could be recovered
+     */
+    function parseVerifyReferenceLLMResponse(text) {
+        console.debug(`LLM response text: || ${text} ||`);
+
+        const INVISIBLE_CHARS_REGEX = /[\u00A0\u200B\u200C\u200D\u202F\uFEFF]/g;
+
+        // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
+        let jsonText = text.trim()
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/```\s*$/i, '')
+            .trim();
+
+        // 2. Clean invisible/zero-width characters that silently break JSON.parse
+        jsonText = jsonText.replace(INVISIBLE_CHARS_REGEX, ' ');
+
+        // 3. Fast path: try strict parse first
+        try {
+            let result = JSON.parse(jsonText);
+            if (Array.isArray(result) && result.length > 0) {
+                result = result[0];
+            }
+            return result;
+        } catch (parseError) {
+            console.warn("Strict JSON parse failed in LLM verification, attempting recovery...");
+        }
+
+        // 4. Recovery: find the JSON object using brace/string-aware scanning
+        //    (handles nested braces inside string values, unlike a naive
+        //    indexOf('{') / lastIndexOf('}') approach)
+        const firstBrace = jsonText.indexOf('{');
+        if (firstBrace === -1) {
+            throw new Error("Could not extract a valid JSON object from LLM response.");
+        }
+
+        let depth = 0;
+        let inString = false;
+        let escapeNext = false;
+        let candidate = null;
+
+        for (let i = firstBrace; i < jsonText.length; i++) {
+            const char = jsonText[i];
+
+            if (escapeNext) {
+                escapeNext = false;
+                continue;
+            }
+            if (char === '\\') {
+                escapeNext = true;
+                continue;
+            }
+            if (char === '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString) continue;
+
+            if (char === '{') depth++;
+            if (char === '}') {
+                depth--;
+                if (depth === 0) {
+                    candidate = jsonText.substring(firstBrace, i + 1);
+                    break;
+                }
+            }
+        }
+
+        // 5. If we never closed the object (response was truncated), repair it:
+        //    close any open string, then close any remaining open braces.
+        if (candidate === null) {
+            let repaired = jsonText.substring(firstBrace);
+            if (inString) repaired += '"';
+            repaired += '}'.repeat(Math.max(depth, 1));
+            candidate = repaired;
+        }
+
+        // 6. Remove trailing commas before closing braces/brackets, a common
+        //    LLM formatting mistake (e.g. `"a": 1,}`)
+        const cleanedCandidate = candidate.replace(/,(\s*[}\]])/g, '$1');
+
+        try {
+            return JSON.parse(cleanedCandidate);
+        } catch (innerError) {
+            // 7. Ultimate fallback: if it's completely mangled but intent is
+            //    still readable, synthesize a "not found" result.
+            if (/"exists"\s*:\s*false/.test(cleanedCandidate)) {
+                return {
+                    exists: false,
+                    confidence: "high",
+                    authorMatch: false,
+                    yearMatch: false,
+                    foundTitle: "",
+                    foundAuthors: "",
+                    canonicalUrl: "",
+                    message: "No match found (Recovered from malformed LLM response)."
+                };
+            }
+            throw new Error("Could not extract a valid JSON object from LLM response.");
+        }
+    }
+
     // Verify reference using LLM
     async function verifyReferenceWithLLM(reference) {
         const apiKey = storage.get('geminiApiKey');
@@ -2888,36 +2998,7 @@ OUTPUT FORMAT (exact keys and order required):
             const finishReason = candidate?.finishReason || "UNKNOWN";
             console.debug(`LLM Finish Reason: ${finishReason}`);
 
-            console.debug(`LLM response text: || ${text} ||`);
-
-            // Extract JSON from response
-            jsonText = text.trim();
-            if (jsonText.startsWith('```json')) {
-                jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            } else if (jsonText.startsWith('```')) {
-                jsonText = jsonText.replace(/```\n?/g, '').trim();
-            }
-
-            let result;
-            try {
-                result = JSON.parse(jsonText);
-                // Just in case it returned perfectly valid JSON but wrapped it in an array
-                if (Array.isArray(result) && result.length > 0) {
-                    result = result[0];
-                }
-            } catch (parseError) {
-                console.warn("Strict JSON parse failed in LLM verification, extracting object...");
-                // Force extract the object by finding the first '{' and last '}'
-                const firstBrace = jsonText.indexOf('{');
-                const lastBrace = jsonText.lastIndexOf('}');
-
-                if (firstBrace !== -1 && lastBrace !== -1) {
-                    const cleanObjectText = jsonText.substring(firstBrace, lastBrace + 1);
-                    result = JSON.parse(cleanObjectText);
-                } else {
-                    throw new Error("Could not extract a valid JSON object from LLM response.");
-                }
-            }
+            const result = parseVerifyReferenceLLMResponse(text);
 
             const llm_confidence = result.exists ? 'low' : result.confidence || 'low'; // LLM results are not accurate
 
